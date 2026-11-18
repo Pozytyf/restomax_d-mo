@@ -1,9 +1,15 @@
 import { getDb, generateId } from '../db.ts';
+import { BaseRepository } from './BaseRepository.ts';
 import type { Permission, Role } from '../../types/index.ts';
 
-export const restaurantRepository = {
+export class RestaurantRepository extends BaseRepository {
+  constructor() {
+    super({ tableName: 'restaurants', tenantColumn: 'restaurant_id' });
+  }
+
   getDashboardMetrics(rid: string) {
-    const db = getDb();
+    this.requireTenantId(rid);
+    const db = this.db;
     const revenueRow = db
       .prepare(
         `SELECT COALESCE(SUM(total_xof), 0) as total_revenue,
@@ -126,7 +132,7 @@ export const restaurantRepository = {
       expensesRow,
       collectedRow,
     };
-  },
+  }
 
   findMenuCategories(rid: string) {
     const db = getDb();
@@ -136,7 +142,7 @@ export const restaurantRepository = {
          FROM menu_categories WHERE restaurant_id = ? ORDER BY sort_order ASC`,
       )
       .all(rid) as Array<Record<string, unknown>>;
-  },
+  }
 
   findMenuItems(rid: string) {
     const db = getDb();
@@ -152,7 +158,7 @@ export const restaurantRepository = {
          ORDER BY m.sort_order ASC, m.name ASC`,
       )
       .all(rid) as Array<Record<string, unknown>>;
-  },
+  }
 
   countCategories(rid: string): number {
     const db = getDb();
@@ -161,7 +167,7 @@ export const restaurantRepository = {
         .prepare('SELECT COUNT(*) as c FROM menu_categories WHERE restaurant_id = ?')
         .get(rid) as { c: number }
     ).c;
-  },
+  }
 
   createCategory(rid: string, name: string, station: string, sortOrder: number) {
     const db = getDb();
@@ -171,14 +177,14 @@ export const restaurantRepository = {
        VALUES (?, ?, ?, ?, ?, 1)`,
     ).run(id, rid, name, station, sortOrder);
     return id;
-  },
+  }
 
   findCategory(categoryId: string, rid: string) {
     const db = getDb();
     return db
       .prepare('SELECT id FROM menu_categories WHERE id = ? AND restaurant_id = ?')
       .get(categoryId, rid);
-  },
+  }
 
   createMenuItem(params: {
     rid: string;
@@ -208,14 +214,14 @@ export const restaurantRepository = {
       new Date().toISOString(),
     );
     return id;
-  },
+  }
 
   findMenuItemById(itemId: string, rid: string) {
     const db = getDb();
     return db
       .prepare('SELECT id FROM menu_items WHERE id = ? AND restaurant_id = ?')
       .get(itemId, rid);
-  },
+  }
 
   updateMenuItem(
     itemId: string,
@@ -248,7 +254,7 @@ export const restaurantRepository = {
         'UPDATE menu_items SET description = ? WHERE id = ? AND restaurant_id = ?',
       ).run(updates.description, itemId, rid);
     }
-  },
+  }
 
   findOrdersWithItems(rid: string) {
     const db = getDb();
@@ -280,7 +286,7 @@ export const restaurantRepository = {
       ...o,
       items: getLines.all(String(o.id)),
     }));
-  },
+  }
 
   findOrderByIdempotencyKey(rid: string, key: string) {
     const db = getDb();
@@ -289,21 +295,21 @@ export const restaurantRepository = {
         'SELECT id, order_number, total_xof FROM orders WHERE restaurant_id = ? AND idempotency_key = ?',
       )
       .get(rid, key);
-  },
+  }
 
   findRestaurantTaxAndMode(rid: string) {
     const db = getDb();
     return db
       .prepare('SELECT tax_rate_percent, paydunya_mode FROM restaurants WHERE id = ?')
       .get(rid) as { tax_rate_percent: number; paydunya_mode: string };
-  },
+  }
 
   findTableById(tableId: string, rid: string) {
     const db = getDb();
     return db
       .prepare('SELECT id, label FROM dining_tables WHERE id = ? AND restaurant_id = ?')
       .get(tableId, rid) as { id: string; label: string } | undefined;
-  },
+  }
 
   countOrders(rid: string): number {
     const db = getDb();
@@ -312,7 +318,7 @@ export const restaurantRepository = {
         .prepare('SELECT COUNT(*) as c FROM orders WHERE restaurant_id = ?')
         .get(rid) as { c: number }
     ).c;
-  },
+  }
 
   findMenuItemWithStation(menuItemId: string, rid: string) {
     const db = getDb();
@@ -324,7 +330,7 @@ export const restaurantRepository = {
          WHERE m.id = ? AND m.restaurant_id = ?`,
       )
       .get(menuItemId, rid) as Record<string, unknown> | undefined;
-  },
+  }
 
   insertPosOrder(params: {
     orderId: string;
@@ -406,7 +412,7 @@ export const restaurantRepository = {
         `UPDATE dining_tables SET status = 'OCCUPIED' WHERE id = ? AND restaurant_id = ?`,
       ).run(params.tableId, params.rid);
     }
-  },
+  }
 
   findOrderForUpdate(orderId: string, rid: string) {
     const db = getDb();
@@ -423,7 +429,7 @@ export const restaurantRepository = {
           status: string;
         }
       | undefined;
-  },
+  }
 
   updateOrderAndPrepStatus(
     orderId: string,
@@ -454,7 +460,7 @@ export const restaurantRepository = {
         `UPDATE dining_tables SET status = 'AVAILABLE' WHERE id = ? AND restaurant_id = ?`,
       ).run(tableId, rid);
     }
-  },
+  }
 
   findPayments(rid: string) {
     const db = getDb();
@@ -470,7 +476,7 @@ export const restaurantRepository = {
          LIMIT 100`,
       )
       .all(rid);
-  },
+  }
 
   findPaymentByIdempotencyKey(rid: string, key: string) {
     const db = getDb();
@@ -479,7 +485,7 @@ export const restaurantRepository = {
         'SELECT id, reference, amount_xof FROM payments WHERE restaurant_id = ? AND idempotency_key = ?',
       )
       .get(rid, key);
-  },
+  }
 
   insertPaymentAndSettleOrder(params: {
     paymentId: string;
@@ -532,7 +538,7 @@ export const restaurantRepository = {
         `UPDATE dining_tables SET status = 'AVAILABLE' WHERE id = ? AND restaurant_id = ?`,
       ).run(params.tableId, params.rid);
     }
-  },
+  }
 
   findPaymentForRefund(paymentId: string, rid: string) {
     const db = getDb();
@@ -543,7 +549,7 @@ export const restaurantRepository = {
       .get(paymentId, rid) as
       | { id: string; order_id: string; amount_xof: number; status: string }
       | undefined;
-  },
+  }
 
   markPaymentRefunded(paymentId: string, rid: string, orderId: string, amountXof: number) {
     const db = getDb();
@@ -554,7 +560,7 @@ export const restaurantRepository = {
     db.prepare(
       `UPDATE orders SET paid_xof = MAX(0, paid_xof - ?), status = 'SERVED', updated_at = ? WHERE id = ? AND restaurant_id = ?`,
     ).run(amountXof, new Date().toISOString(), orderId, rid);
-  },
+  }
 
   findTablesWithQrAndActiveOrder(rid: string) {
     const db = getDb();
@@ -570,7 +576,7 @@ export const restaurantRepository = {
          ORDER BY t.zone ASC, t.label ASC`,
       )
       .all(rid);
-  },
+  }
 
   createTableWithQr(rid: string, zone: string, label: string, capacity: number) {
     const db = getDb();
@@ -589,14 +595,14 @@ export const restaurantRepository = {
     ).run(generateId('qr'), rid, tableId, qrToken, now);
 
     return { tableId, qrToken };
-  },
+  }
 
   updateTableStatus(tableId: string, rid: string, status: string) {
     const db = getDb();
     db.prepare(
       'UPDATE dining_tables SET status = ? WHERE id = ? AND restaurant_id = ?',
     ).run(status, tableId, rid);
-  },
+  }
 
   regenerateTableQr(tableId: string, rid: string) {
     const db = getDb();
@@ -620,7 +626,7 @@ export const restaurantRepository = {
     ).run(generateId('qr'), rid, tableId, newToken, nextVer, now);
 
     return { token: newToken, version: nextVer };
-  },
+  }
 
   findStocksAndMovements(rid: string) {
     const db = getDb();
@@ -645,7 +651,7 @@ export const restaurantRepository = {
       .all(rid);
 
     return { stocks, movements };
-  },
+  }
 
   createStockItem(params: {
     rid: string;
@@ -673,7 +679,7 @@ export const restaurantRepository = {
       new Date().toISOString(),
     );
     return id;
-  },
+  }
 
   findStockById(stockId: string, rid: string) {
     const db = getDb();
@@ -684,7 +690,7 @@ export const restaurantRepository = {
       .get(stockId, rid) as
       | { id: string; quantity: number; name: string; min_threshold: number }
       | undefined;
-  },
+  }
 
   applyStockMovement(params: {
     rid: string;
@@ -715,7 +721,7 @@ export const restaurantRepository = {
       params.userId,
       now,
     );
-  },
+  }
 
   findStaffMembers(rid: string) {
     const db = getDb();
@@ -729,14 +735,14 @@ export const restaurantRepository = {
          ORDER BY rm.created_at ASC`,
       )
       .all(rid) as Array<Record<string, unknown>>;
-  },
+  }
 
   findUserByEmail(email: string) {
     const db = getDb();
     return db
       .prepare('SELECT id FROM users WHERE lower(email) = lower(?)')
       .get(email) as { id: string } | undefined;
-  },
+  }
 
   createStaffUserAndMember(params: {
     rid: string;
@@ -753,14 +759,17 @@ export const restaurantRepository = {
     const memberId = generateId('mem');
 
     db.prepare(
-      `INSERT INTO users (id, email, password_hash, full_name, phone, global_role, status, created_at)
-       VALUES (?, ?, ?, ?, ?, 'USER', 'ACTIVE', ?)`,
+      `INSERT INTO users (id, tenant_id, email, password_hash, full_name, phone, role, global_role, permissions_json, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'USER', ?, 'ACTIVE', ?)`,
     ).run(
       userId,
+      params.rid,
       params.email,
       params.passwordHash,
       params.fullName,
       params.phone,
+      params.role,
+      JSON.stringify(params.customPermissions),
       now,
     );
 
@@ -777,7 +786,7 @@ export const restaurantRepository = {
     );
 
     return { memberId, userId };
-  },
+  }
 
   findMemberById(memberId: string, rid: string) {
     const db = getDb();
@@ -788,7 +797,7 @@ export const restaurantRepository = {
       .get(memberId, rid) as
       | { id: string; user_id: string; role: Role }
       | undefined;
-  },
+  }
 
   updateStaffMember(
     memberId: string,
@@ -822,7 +831,7 @@ export const restaurantRepository = {
         'UPDATE restaurant_members SET custom_permissions_json = ? WHERE id = ? AND restaurant_id = ?',
       ).run(JSON.stringify(updates.customPermissions), memberId, rid);
     }
-  },
+  }
 
   findCustomers(rid: string) {
     const db = getDb();
@@ -834,7 +843,7 @@ export const restaurantRepository = {
          FROM customers WHERE restaurant_id = ? ORDER BY total_spent_xof DESC`,
       )
       .all(rid);
-  },
+  }
 
   createCustomer(params: {
     rid: string;
@@ -858,7 +867,7 @@ export const restaurantRepository = {
       new Date().toISOString(),
     );
     return id;
-  },
+  }
 
   findReservations(rid: string) {
     const db = getDb();
@@ -874,7 +883,7 @@ export const restaurantRepository = {
          ORDER BY r.reserved_at ASC`,
       )
       .all(rid);
-  },
+  }
 
   createReservation(params: {
     rid: string;
@@ -902,14 +911,14 @@ export const restaurantRepository = {
       new Date().toISOString(),
     );
     return id;
-  },
+  }
 
   updateReservationStatus(id: string, rid: string, status: string) {
     const db = getDb();
     db.prepare(
       'UPDATE reservations SET status = ? WHERE id = ? AND restaurant_id = ?',
     ).run(status, id, rid);
-  },
+  }
 
   findFinanceSummary(rid: string) {
     const db = getDb();
@@ -948,7 +957,7 @@ export const restaurantRepository = {
       .all(rid);
 
     return { sales, cogsRow, expenses, byMethod };
-  },
+  }
 
   createExpense(params: {
     rid: string;
@@ -973,7 +982,7 @@ export const restaurantRepository = {
       now,
     );
     return id;
-  },
+  }
 
   findOrdersForCsvExport(rid: string) {
     const db = getDb();
@@ -983,7 +992,7 @@ export const restaurantRepository = {
          FROM orders WHERE restaurant_id = ? ORDER BY created_at DESC`,
       )
       .all(rid) as Array<Record<string, unknown>>;
-  },
+  }
 
   findRestaurantSettings(rid: string) {
     const db = getDb();
@@ -1009,7 +1018,7 @@ export const restaurantRepository = {
       .get(rid);
 
     return { resto, sub };
-  },
+  }
 
   updateRestaurantSettings(
     rid: string,
@@ -1066,7 +1075,7 @@ export const restaurantRepository = {
         rid,
       );
     }
-  },
+  }
 
   findTicketsForRestaurant(rid: string) {
     const db = getDb();
@@ -1076,7 +1085,7 @@ export const restaurantRepository = {
          FROM support_tickets WHERE restaurant_id = ? ORDER BY created_at DESC`,
       )
       .all(rid);
-  },
+  }
 
   createSupportTicket(params: {
     rid: string;
@@ -1108,5 +1117,7 @@ export const restaurantRepository = {
        VALUES (?, ?, ?, ?, ?, ?)`,
     ).run(generateId('tmsg'), id, params.fullName, params.role, params.message, now);
     return id;
-  },
-};
+  }
+}
+
+export const restaurantRepository = new RestaurantRepository();

@@ -1,10 +1,18 @@
 import QRCode from 'qrcode';
 import { getDb, generateId } from '../db.ts';
-import { publicRepository } from '../repositories/publicRepository.ts';
+import {
+  PublicRepository,
+  publicRepository,
+} from '../repositories/publicRepository.ts';
 import { broadcastRestaurantEvent } from '../ws.ts';
+import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
 
-export const publicService = {
+export class PublicService extends BaseService<PublicRepository> {
+  constructor(repo = publicRepository) {
+    super(repo);
+  }
+
   getActivePlans() {
     const rows = publicRepository.findActivePlans();
     return rows.map((r) => ({
@@ -23,7 +31,7 @@ export const publicService = {
       features: JSON.parse(String(r.features_json || '[]')),
       active: Boolean(r.active),
     }));
-  },
+  }
 
   getPlatformSettings(): Record<string, string> {
     const rows = publicRepository.findAllPlatformSettings();
@@ -32,7 +40,7 @@ export const publicService = {
       settings[row.key] = row.value;
     }
     return settings;
-  },
+  }
 
   submitContactLead(body: Record<string, unknown>) {
     const { fullName, email, phone, restaurantName, city, message, website } =
@@ -70,7 +78,7 @@ export const publicService = {
       message:
         'Votre message a bien été enregistré. Notre équipe vous répondra rapidement.',
     };
-  },
+  }
 
   submitDemoRequest(body: Record<string, unknown>) {
     const { fullName, email, phone, restaurantName, city, message, website } =
@@ -107,7 +115,7 @@ export const publicService = {
       id,
       message: 'Demande de démonstration enregistrée avec succès.',
     };
-  },
+  }
 
   async generateQrSvg(token: string, baseUrl: string): Promise<string> {
     try {
@@ -120,7 +128,7 @@ export const publicService = {
     } catch {
       throw new AppError(500, 'Impossible de générer le QR code.');
     }
-  },
+  }
 
   getQrMenuContext(token: string) {
     const qrRow = publicRepository.findQrContextByToken(token);
@@ -184,7 +192,7 @@ export const publicService = {
       categories,
       items,
     };
-  },
+  }
 
   submitQrOrder(token: string, body: Record<string, unknown>) {
     const { sessionId, customerName, notes, items, idempotencyKey } = body || {};
@@ -375,7 +383,7 @@ export const publicService = {
       }
       throw new AppError(500, 'Erreur lors de l’envoi de la commande.');
     }
-  },
+  }
 
   trackQrOrder(token: string, orderId: string) {
     const result = publicRepository.findTrackedQrOrder(token, orderId);
@@ -395,5 +403,7 @@ export const publicService = {
       updatedAt: order.updated_at,
       items,
     };
-  },
-};
+  }
+}
+
+export const publicService = new PublicService();

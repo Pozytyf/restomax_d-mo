@@ -2,10 +2,18 @@ import bcrypt from 'bcryptjs';
 import { getDb, generateId } from '../db.ts';
 import { type AuthContext, recordAudit } from '../auth.ts';
 import { broadcastSuperAdminEvent } from '../ws.ts';
-import { superadminRepository } from '../repositories/superadminRepository.ts';
+import {
+  SuperadminRepository,
+  superadminRepository,
+} from '../repositories/superadminRepository.ts';
+import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
 
-export const superadminService = {
+export class SuperadminService extends BaseService<SuperadminRepository> {
+  constructor(repo = superadminRepository) {
+    super(repo);
+  }
+
   getDashboard() {
     const {
       counts,
@@ -36,11 +44,11 @@ export const superadminService = {
       recentAudit,
       monthlyPlatformSeries,
     };
-  },
+  }
 
   listRestaurants() {
     return superadminRepository.findAllRestaurants();
-  },
+  }
 
   createRestaurant(auth: AuthContext, body: Record<string, unknown>) {
     const { name, city, ownerName, ownerEmail, phone, planCode } = body || {};
@@ -101,7 +109,7 @@ export const superadminService = {
       db.exec('ROLLBACK');
       throw new AppError(500, 'Erreur création restaurant.');
     }
-  },
+  }
 
   updateRestaurantStatus(
     auth: AuthContext,
@@ -132,7 +140,7 @@ export const superadminService = {
       restaurantId: rid,
       status,
     });
-  },
+  }
 
   listPlans() {
     const plans = superadminRepository.findAllPlans();
@@ -152,7 +160,7 @@ export const superadminService = {
       features: JSON.parse(String(p.features_json || '[]')),
       active: Boolean(p.active),
     }));
-  },
+  }
 
   updatePlan(
     auth: AuthContext,
@@ -201,15 +209,15 @@ export const superadminService = {
       targetId: planId,
       details: 'Mise à jour tarif/limites',
     });
-  },
+  }
 
   listSubscriptions() {
     return superadminRepository.findAllSubscriptions();
-  },
+  }
 
   listInvoices() {
     return superadminRepository.findPlatformInvoices();
-  },
+  }
 
   markInvoicePaid(auth: AuthContext, invoiceId: string) {
     superadminRepository.markInvoicePaid(invoiceId);
@@ -222,11 +230,11 @@ export const superadminService = {
       targetType: 'INVOICE',
       targetId: invoiceId,
     });
-  },
+  }
 
   listUsers() {
     return superadminRepository.findAllUsers();
-  },
+  }
 
   updateUserStatus(
     auth: AuthContext,
@@ -253,11 +261,11 @@ export const superadminService = {
       targetType: 'USER',
       targetId: targetUserId,
     });
-  },
+  }
 
   listTicketsAndLeads() {
     return superadminRepository.findAllTicketsAndLeads();
-  },
+  }
 
   replyToTicket(
     auth: AuthContext,
@@ -271,11 +279,11 @@ export const superadminService = {
       typeof messageBody === 'string' ? messageBody : undefined,
       status ? String(status) : undefined,
     );
-  },
+  }
 
   listAuditLogs() {
     return superadminRepository.findAuditLogs();
-  },
+  }
 
   getPlatformSettings(): Record<string, string> {
     const rows = superadminRepository.findPlatformSettings();
@@ -284,7 +292,7 @@ export const superadminService = {
       settings[r.key] = r.value;
     }
     return settings;
-  },
+  }
 
   updatePlatformSettings(
     auth: AuthContext,
@@ -306,5 +314,7 @@ export const superadminService = {
       targetType: 'SETTINGS',
       targetId: 'global',
     });
-  },
-};
+  }
+}
+
+export const superadminService = new SuperadminService();

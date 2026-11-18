@@ -7,11 +7,19 @@ import {
   signSessionToken,
 } from '../auth.ts';
 import { resolveEffectivePermissions } from '../rbac.ts';
-import { authRepository } from '../repositories/authRepository.ts';
+import {
+  AuthRepository,
+  authRepository,
+} from '../repositories/authRepository.ts';
+import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
 import type { Role } from '../../types/index.ts';
 
-export const authService = {
+export class AuthService extends BaseService<AuthRepository> {
+  constructor(repo = authRepository) {
+    super(repo);
+  }
+
   login(body: Record<string, unknown>, userAgent: string) {
     const { email, password } = body || {};
     if (typeof email !== 'string' || typeof password !== 'string') {
@@ -75,6 +83,7 @@ export const authService = {
       userAgent: userAgent.slice(0, 200),
       now,
     });
+    authRepository.updateLastLogin(user.id, now);
 
     const db = getDb();
     recordAudit(db, {
@@ -109,7 +118,7 @@ export const authService = {
         ),
       },
     };
-  },
+  }
 
   registerRestaurant(body: Record<string, unknown>, userAgent: string) {
     const {
@@ -225,7 +234,7 @@ export const authService = {
       db.exec('ROLLBACK');
       throw new AppError(500, 'Erreur lors de la création du restaurant.');
     }
-  },
+  }
 
   getMe(token: string | null) {
     if (!token) {
@@ -249,7 +258,7 @@ export const authService = {
       restaurantStatus: ctx.restaurantStatus,
       permissions: ctx.permissions,
     };
-  },
+  }
 
   logout(auth?: AuthContext) {
     if (auth) {
@@ -264,7 +273,7 @@ export const authService = {
         targetId: auth.sessionId,
       });
     }
-  },
+  }
 
   changePassword(auth: AuthContext, body: Record<string, unknown>) {
     const { currentPassword, newPassword } = body || {};
@@ -293,5 +302,7 @@ export const authService = {
       targetType: 'USER',
       targetId: auth.userId,
     });
-  },
-};
+  }
+}
+
+export const authService = new AuthService();

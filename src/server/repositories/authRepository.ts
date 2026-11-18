@@ -1,6 +1,11 @@
 import { getDb, generateId } from '../db.ts';
+import { BaseRepository } from './BaseRepository.ts';
 
-export const authRepository = {
+export class AuthRepository extends BaseRepository {
+  constructor() {
+    super({ tableName: 'users', tenantColumn: 'tenant_id' });
+  }
+
   findUserByEmail(email: string) {
     const db = getDb();
     return db
@@ -19,7 +24,7 @@ export const authRepository = {
           status: string;
         }
       | undefined;
-  },
+  }
 
   findPrimaryMembershipForUser(userId: string) {
     const db = getDb();
@@ -34,7 +39,7 @@ export const authRepository = {
          LIMIT 1`,
       )
       .get(userId) as Record<string, unknown> | undefined;
-  },
+  }
 
   createSession(params: {
     sessionId: string;
@@ -56,7 +61,15 @@ export const authRepository = {
       params.userAgent,
       params.now,
     );
-  },
+  }
+
+  updateLastLogin(userId: string, now: string) {
+    const db = getDb();
+    db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(
+      now,
+      userId,
+    );
+  }
 
   revokeSession(sessionId: string) {
     const db = getDb();
@@ -64,7 +77,7 @@ export const authRepository = {
       new Date().toISOString(),
       sessionId,
     );
-  },
+  }
 
   findPlanForRegistration(planCode: string) {
     const db = getDb();
@@ -76,7 +89,7 @@ export const authRepository = {
         .prepare('SELECT id, trial_days FROM plans WHERE active = 1 LIMIT 1')
         .get() as { id: string; trial_days: number })
     );
-  },
+  }
 
   createRestaurantWithOwnerAndStarterData(params: {
     restaurantId: string;
@@ -113,10 +126,11 @@ export const authRepository = {
     );
 
     db.prepare(
-      `INSERT INTO users (id, email, password_hash, full_name, phone, global_role, status, created_at)
-       VALUES (?, ?, ?, ?, ?, 'USER', 'ACTIVE', ?)`,
+      `INSERT INTO users (id, tenant_id, email, password_hash, full_name, phone, role, global_role, permissions_json, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'OWNER', 'USER', '[]', 'ACTIVE', ?)`,
     ).run(
       params.userId,
+      params.restaurantId,
       params.email,
       params.passwordHash,
       params.ownerName,
@@ -182,14 +196,14 @@ export const authRepository = {
       params.userAgent,
       params.now,
     );
-  },
+  }
 
   findUserPasswordHash(userId: string) {
     const db = getDb();
     return db
       .prepare('SELECT password_hash FROM users WHERE id = ?')
       .get(userId) as { password_hash: string } | undefined;
-  },
+  }
 
   updateUserPasswordHash(userId: string, passwordHash: string) {
     const db = getDb();
@@ -197,5 +211,7 @@ export const authRepository = {
       passwordHash,
       userId,
     );
-  },
-};
+  }
+}
+
+export const authRepository = new AuthRepository();

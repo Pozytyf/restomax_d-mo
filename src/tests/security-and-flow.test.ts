@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { getDb, setTestDb } from '../server/db.ts';
 import { createExpressApp } from '../server/app.ts';
+import {
+  assertSameTenant,
+  createKnexInstance,
+  forTenant,
+  runKnexMigrations,
+} from '../server/knex.ts';
+import { BaseRepository } from '../server/repositories/BaseRepository.ts';
+import { BaseService } from '../server/services/BaseService.ts';
 
 let server: http.Server;
 let baseUrl: string;
@@ -286,4 +294,217 @@ test('5. Session revocation & Restaurant suspension block old tokens', async () 
     token: saToken,
   });
   assert.equal(saAfterLogout.status, 401);
+});
+
+test('6. Knex migration (tenants & users) + better-sqlite3 multi-tenant isolation', async () => {
+  const kx = createKnexInstance(':memory:');
+  try {
+    await runKnexMigrations(kx);
+
+    const hasTenants = await kx.schema.hasTable('tenants');
+    const hasUsers = await kx.schema.hasTable('users');
+    const hasTenantIdCol = await kx.schema.hasColumn('users', 'tenant_id');
+    const hasRoleCol = await kx.schema.hasColumn('users', 'role');
+    const hasGlobalRoleCol = await kx.schema.hasColumn('users', 'global_role');
+    const hasPermsCol = await kx.schema.hasColumn('users', 'permissions_json');
+    const hasTokenVersionCol = await kx.schema.hasColumn('users', 'token_version');
+    const hasLastLoginCol = await kx.schema.hasColumn('users', 'last_login_at');
+    const hasUpdatedAtCol = await kx.schema.hasColumn('users', 'updated_at');
+
+    assert.equal(hasTenants, true);
+    assert.equal(hasUsers, true);
+    assert.equal(hasTenantIdCol, true);
+    assert.equal(hasRoleCol, true);
+    assert.equal(hasGlobalRoleCol, true);
+    assert.equal(hasPermsCol, true);
+    assert.equal(hasTokenVersionCol, true);
+    assert.equal(hasLastLoginCol, true);
+    assert.equal(hasUpdatedAtCol, true);
+
+    const now = new Date().toISOString();
+    await kx('tenants').insert([
+      {
+        id: 't_alpha',
+        name: 'Restaurant Alpha',
+        slug: 'restaurant-alpha',
+        email: 'alpha@restomax.ci',
+        created_at: now,
+      },
+      {
+        id: 't_beta',
+        name: 'Restaurant Beta',
+        slug: 'restaurant-beta',
+        email: 'beta@restomax.ci',
+        created_at: now,
+      },
+    ]);
+
+    await kx('users').insert([
+      {
+        id: 'u_alpha_1',
+        tenant_id: 't_alpha',
+        email: 'chef@alpha.ci',
+        password_hash: 'hash',
+        full_name: 'Chef Alpha',
+        role: 'OWNER',
+        permissions_json: JSON.stringify(['*']),
+        created_at: now,
+      },
+      {
+        id: 'u_alpha_2',
+        tenant_id: 't_alpha',
+        email: 'caisse@alpha.ci',
+        password_hash: 'hash',
+        full_name: 'Caissier Alpha',
+        role: 'CASHIER',
+        permissions_json: JSON.stringify(['pos:read', 'pos:write']),
+        created_at: now,
+      },
+      {
+        id: 'u_beta_1',
+        tenant_id: 't_beta',
+        email: 'chef@beta.ci',
+        password_hash: 'hash',
+        full_name: 'Chef Beta',
+        role: 'MANAGER',
+        permissions_json: '[]',
+        created_at: now,
+      },
+    ]);
+
+    // Single-row insert omitting defaults should populate RBAC & auth defaults cleanly
+    await kx('users').insert({
+      id: 'u_beta_2',
+      tenant_id: 't_beta',
+      email: 'serveur@beta.ci',
+      password_hash: 'hash',
+      full_name: 'Serveur Beta',
+      role: 'WAITER',
+      created_at: now,
+    });
+    const waiterBeta = await kx('users').where({ id: 'u_beta_2', tenant_id: 't_beta' }).first();
+    assert.equal(waiterBeta.permissions_json, '[]');
+    assert.equal(waiterBeta.status, 'ACTIVE');
+    assert.equal(waiterBeta.token_version, 1);
+    assert.equal(waiterBeta.global_role, 'USER');
+
+    // Multi-tenant scoped query must only return users of the specified tenant
+    const alphaUsers = await forTenant('users', 't_alpha', 'tenant_id', kx);
+    assert.equal(alphaUsers.length, 2);
+    const alphaOwner = alphaUsers.find((u: Record<string, unknown>) => u.id === 'u_alpha_1');
+    const alphaCashier = alphaUsers.find((u: Record<string, unknown>) => u.id === 'u_alpha_2');
+    assert.equal(alphaOwner?.role, 'OWNER');
+    assert.equal(alphaCashier?.role, 'CASHIER');
+    assert.equal(alphaOwner?.token_version, 1);
+
+    // Missing tenantId must fail fast with 403
+    assert.throws(() => forTenant('users', '', 'tenant_id', kx), /tenant/i);
+    assert.throws(() => assertSameTenant('t_alpha', 't_beta'), /inter-tenant/i);
+
+    // Foreign key constraint rejects unknown tenant_id
+    await assert.rejects(
+      kx('users').insert({
+        id: 'u_orphan',
+        tenant_id: 't_inexistant',
+        email: 'orphan@test.ci',
+        password_hash: 'hash',
+        full_name: 'Orphan',
+        role: 'WAITER',
+        created_at: now,
+      }),
+    );
+
+    // CHECK constraint rejects non-SUPER_ADMIN user without tenant_id
+    await assert.rejects(
+      kx('users').insert({
+        id: 'u_no_tenant',
+        tenant_id: null,
+        email: 'notenant@test.ci',
+        password_hash: 'hash',
+        full_name: 'No Tenant',
+        role: 'OWNER',
+        global_role: 'USER',
+        created_at: now,
+      }),
+    );
+
+    // CHECK constraint rejects invalid RBAC role
+    await assert.rejects(
+      kx('users').insert({
+        id: 'u_bad_role',
+        tenant_id: 't_alpha',
+        email: 'badrole@alpha.ci',
+        password_hash: 'hash',
+        full_name: 'Bad Role',
+        role: 'HACKER',
+        created_at: now,
+      }),
+    );
+
+    // CHECK constraint rejects invalid user status
+    await assert.rejects(
+      kx('users').insert({
+        id: 'u_bad_status',
+        tenant_id: 't_alpha',
+        email: 'badstatus@alpha.ci',
+        password_hash: 'hash',
+        full_name: 'Bad Status',
+        role: 'WAITER',
+        status: 'INVALID_STATUS',
+        created_at: now,
+      }),
+    );
+  } finally {
+    await kx.destroy();
+  }
+});
+
+test('7. BaseRepository & BaseService default multi-tenant isolation', () => {
+  class CustomerScopedRepo extends BaseRepository {}
+  class CustomerScopedService extends BaseService<CustomerScopedRepo> {}
+
+  const repo = new CustomerScopedRepo({
+    tableName: 'customers',
+    tenantColumn: 'restaurant_id',
+  });
+  const service = new CustomerScopedService(repo);
+
+  // Missing tenant context must fail with 403
+  assert.throws(() => repo.findAllByTenant(''), /tenant/i);
+  assert.throws(() => service.requireTenantContext(undefined), /multi-tenant/i);
+
+  // Insert strictly scoped to rest_sillage_01 even if caller omits/spoofs restaurant_id
+  const custId = 'cust_iso_test_1';
+  repo.insertForTenant('rest_sillage_01', {
+    id: custId,
+    restaurant_id: 'rest_plateau_02', // Attempted spoof must be overridden!
+    full_name: 'Client Isolé',
+    phone: '+225 07 11 22 33 44',
+    email: 'isole@test.ci',
+    loyalty_points: 10,
+    total_spent_xof: 5000,
+    visits_count: 1,
+    preferences: '',
+    created_at: new Date().toISOString(),
+  });
+
+  // Visible to rest_sillage_01, invisible and unmodifiable to rest_plateau_02
+  const foundR1 = repo.findByIdAndTenant(custId, 'rest_sillage_01');
+  assert.ok(foundR1);
+  assert.equal(foundR1.restaurant_id, 'rest_sillage_01');
+
+  const foundR2 = repo.findByIdAndTenant(custId, 'rest_plateau_02');
+  assert.equal(foundR2, undefined);
+
+  const crossUpdated = repo.updateByIdAndTenant(custId, 'rest_plateau_02', {
+    full_name: 'Hacked',
+  });
+  assert.equal(crossUpdated, 0);
+
+  const crossDeleted = repo.deleteByIdAndTenant(custId, 'rest_plateau_02');
+  assert.equal(crossDeleted, 0);
+
+  // Clean up from owning tenant
+  const ownDeleted = repo.deleteByIdAndTenant(custId, 'rest_sillage_01');
+  assert.equal(ownDeleted, 1);
 });

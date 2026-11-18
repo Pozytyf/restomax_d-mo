@@ -1,6 +1,11 @@
 import { getDb, generateId } from '../db.ts';
+import { BaseRepository } from './BaseRepository.ts';
 
-export const publicRepository = {
+export class PublicRepository extends BaseRepository {
+  constructor() {
+    super({ tableName: 'qr_codes', tenantColumn: 'restaurant_id' });
+  }
+
   findActivePlans() {
     const db = getDb();
     return db
@@ -11,14 +16,14 @@ export const publicRepository = {
          FROM plans WHERE active = 1 ORDER BY price_monthly_xof ASC`,
       )
       .all() as Array<Record<string, unknown>>;
-  },
+  }
 
   findAllPlatformSettings() {
     const db = getDb();
     return db
       .prepare('SELECT key, value FROM platform_settings')
       .all() as Array<{ key: string; value: string }>;
-  },
+  }
 
   createLead(params: {
     leadType: 'CONTACT' | 'DEMO_REQUEST';
@@ -46,7 +51,7 @@ export const publicRepository = {
       new Date().toISOString(),
     );
     return id;
-  },
+  }
 
   findQrContextByToken(token: string) {
     const db = getDb();
@@ -62,7 +67,7 @@ export const publicRepository = {
          WHERE q.token = ?`,
       )
       .get(token) as Record<string, unknown> | undefined;
-  },
+  }
 
   createQrTableSession(params: {
     restaurantId: string;
@@ -84,7 +89,7 @@ export const publicRepository = {
       new Date().toISOString(),
     );
     return sessionId;
-  },
+  }
 
   findQrTableSession(sessionId: string) {
     const db = getDb();
@@ -94,7 +99,7 @@ export const publicRepository = {
          FROM qr_table_sessions WHERE id = ?`,
       )
       .get(sessionId) as Record<string, unknown> | undefined;
-  },
+  }
 
   findActiveCategories(restaurantId: string) {
     const db = getDb();
@@ -106,7 +111,7 @@ export const publicRepository = {
          ORDER BY sort_order ASC`,
       )
       .all(restaurantId);
-  },
+  }
 
   findAvailableMenuItems(restaurantId: string) {
     const db = getDb();
@@ -118,7 +123,7 @@ export const publicRepository = {
          ORDER BY sort_order ASC, name ASC`,
       )
       .all(restaurantId) as Array<Record<string, unknown>>;
-  },
+  }
 
   findOrderByIdempotencyKey(restaurantId: string, idempotencyKey: string) {
     const db = getDb();
@@ -127,7 +132,7 @@ export const publicRepository = {
         'SELECT id, order_number, total_xof, status FROM orders WHERE restaurant_id = ? AND idempotency_key = ?',
       )
       .get(restaurantId, idempotencyKey) as Record<string, unknown> | undefined;
-  },
+  }
 
   countOrdersForRestaurant(restaurantId: string): number {
     const db = getDb();
@@ -135,7 +140,7 @@ export const publicRepository = {
       .prepare('SELECT COUNT(*) as c FROM orders WHERE restaurant_id = ?')
       .get(restaurantId) as { c: number };
     return row.c;
-  },
+  }
 
   findMenuItemWithStation(menuItemId: string, restaurantId: string) {
     const db = getDb();
@@ -147,7 +152,7 @@ export const publicRepository = {
          WHERE m.id = ? AND m.restaurant_id = ?`,
       )
       .get(menuItemId, restaurantId) as Record<string, unknown> | undefined;
-  },
+  }
 
   insertQrOrderTransaction(params: {
     orderId: string;
@@ -221,7 +226,7 @@ export const publicRepository = {
     db.prepare(
       `UPDATE dining_tables SET status = 'OCCUPIED' WHERE id = ? AND restaurant_id = ?`,
     ).run(params.tableId, params.restaurantId);
-  },
+  }
 
   findTrackedQrOrder(token: string, orderId: string) {
     const db = getDb();
@@ -247,5 +252,7 @@ export const publicRepository = {
       .all(orderId);
 
     return { order, items };
-  },
-};
+  }
+}
+
+export const publicRepository = new PublicRepository();

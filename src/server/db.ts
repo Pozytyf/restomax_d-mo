@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 
-let singletonDb: DatabaseSync | null = null;
+let singletonDb: SqliteDatabase | null = null;
 
-export function getDb(customPath?: string): DatabaseSync {
+export function getDb(customPath?: string): SqliteDatabase {
   if (singletonDb && !customPath) {
     return singletonDb;
   }
@@ -23,10 +23,10 @@ export function getDb(customPath?: string): DatabaseSync {
     }
   }
 
-  const db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA foreign_keys = ON;');
+  const db = new Database(dbPath);
+  db.pragma('foreign_keys = ON');
   if (dbPath !== ':memory:') {
-    db.exec('PRAGMA journal_mode = WAL;');
+    db.pragma('journal_mode = WAL');
   }
 
   runMigrations(db);
@@ -38,7 +38,7 @@ export function getDb(customPath?: string): DatabaseSync {
   return db;
 }
 
-export function setTestDb(db: DatabaseSync): void {
+export function setTestDb(db: SqliteDatabase): void {
   singletonDb = db;
 }
 
@@ -46,7 +46,7 @@ export function generateId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 14)}`;
 }
 
-function runMigrations(db: DatabaseSync): void {
+function runMigrations(db: SqliteDatabase): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,
@@ -78,6 +78,29 @@ function runMigrations(db: DatabaseSync): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS tenants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT 'Abidjan',
+      country TEXT NOT NULL DEFAULT 'Côte d''Ivoire',
+      currency TEXT NOT NULL DEFAULT 'XOF',
+      timezone TEXT NOT NULL DEFAULT 'Africa/Abidjan',
+      tax_rate_percent REAL NOT NULL DEFAULT 18.0,
+      service_fee_percent REAL NOT NULL DEFAULT 0.0,
+      opening_hours TEXT NOT NULL DEFAULT '08:00 - 23:30',
+      paydunya_mode TEXT NOT NULL DEFAULT 'TEST',
+      paydunya_public_key TEXT NOT NULL DEFAULT '',
+      paydunya_private_key TEXT NOT NULL DEFAULT '',
+      paydunya_token TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'TRIAL',
+      deleted_at TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS restaurants (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -103,13 +126,19 @@ function runMigrations(db: DatabaseSync): void {
 
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
+      tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       full_name TEXT NOT NULL,
       phone TEXT,
+      role TEXT NOT NULL DEFAULT 'OWNER',
       global_role TEXT NOT NULL DEFAULT 'USER',
+      permissions_json TEXT NOT NULL DEFAULT '[]',
       status TEXT NOT NULL DEFAULT 'ACTIVE',
-      created_at TEXT NOT NULL
+      token_version INTEGER NOT NULL DEFAULT 1,
+      last_login_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS restaurant_members (
@@ -367,17 +396,115 @@ function runMigrations(db: DatabaseSync): void {
     );
   `);
 
+  // Ensure users auth/RBAC & tenant columns exist when upgrading an older database file
+  const userCols = db.prepare('PRAGMA table_info(users)').all() as Array<{
+    name: string;
+  }>;
+  const colNames = new Set(userCols.map((c) => c.name));
+  if (!colNames.has('tenant_id')) {
+    db.exec(
+      'ALTER TABLE users ADD COLUMN tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE;',
+    );
+  }
+  if (!colNames.has('role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'OWNER';");
+  }
+  if (!colNames.has('permissions_json')) {
+    db.exec(
+      "ALTER TABLE users ADD COLUMN permissions_json TEXT NOT NULL DEFAULT '[]';",
+    );
+  }
+  if (!colNames.has('token_version')) {
+    db.exec(
+      'ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1;',
+    );
+  }
+  if (!colNames.has('last_login_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN last_login_at TEXT;');
+  }
+  if (!colNames.has('updated_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN updated_at TEXT;');
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
+    CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_users_tenant_status ON users(tenant_id, status);
+    CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users(tenant_id, role);
+
+    INSERT OR IGNORE INTO tenants (
+      id, name, slug, email, phone, address, city, country, currency, timezone,
+      tax_rate_percent, service_fee_percent, opening_hours, paydunya_mode,
+      paydunya_public_key, paydunya_private_key, paydunya_token, status, deleted_at, created_at
+    )
+    SELECT id, name, slug, email, phone, address, city, country, currency, timezone,
+           tax_rate_percent, service_fee_percent, opening_hours, paydunya_mode,
+           paydunya_public_key, paydunya_private_key, paydunya_token, status, deleted_at, created_at
+    FROM restaurants;
+
+    UPDATE users
+    SET tenant_id = (
+      SELECT rm.restaurant_id FROM restaurant_members rm WHERE rm.user_id = users.id LIMIT 1
+    )
+    WHERE tenant_id IS NULL AND global_role != 'SUPER_ADMIN';
+
+    CREATE TRIGGER IF NOT EXISTS trg_restaurants_insert_tenant
+    AFTER INSERT ON restaurants
+    BEGIN
+      INSERT OR REPLACE INTO tenants (
+        id, name, slug, email, phone, address, city, country, currency, timezone,
+        tax_rate_percent, service_fee_percent, opening_hours, paydunya_mode,
+        paydunya_public_key, paydunya_private_key, paydunya_token, status, deleted_at, created_at
+      ) VALUES (
+        NEW.id, NEW.name, NEW.slug, NEW.email, NEW.phone, NEW.address, NEW.city, NEW.country, NEW.currency, NEW.timezone,
+        NEW.tax_rate_percent, NEW.service_fee_percent, NEW.opening_hours, NEW.paydunya_mode,
+        NEW.paydunya_public_key, NEW.paydunya_private_key, NEW.paydunya_token, NEW.status, NEW.deleted_at, NEW.created_at
+      );
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_restaurants_update_tenant
+    AFTER UPDATE ON restaurants
+    BEGIN
+      UPDATE tenants SET
+        name = NEW.name,
+        slug = NEW.slug,
+        email = NEW.email,
+        phone = NEW.phone,
+        address = NEW.address,
+        city = NEW.city,
+        country = NEW.country,
+        currency = NEW.currency,
+        timezone = NEW.timezone,
+        tax_rate_percent = NEW.tax_rate_percent,
+        service_fee_percent = NEW.service_fee_percent,
+        opening_hours = NEW.opening_hours,
+        paydunya_mode = NEW.paydunya_mode,
+        paydunya_public_key = NEW.paydunya_public_key,
+        paydunya_private_key = NEW.paydunya_private_key,
+        paydunya_token = NEW.paydunya_token,
+        status = NEW.status,
+        deleted_at = NEW.deleted_at
+      WHERE id = NEW.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_restaurants_delete_tenant
+    AFTER DELETE ON restaurants
+    BEGIN
+      DELETE FROM tenants WHERE id = OLD.id;
+    END;
+  `);
+
   const applied = db
     .prepare('SELECT COUNT(*) as c FROM schema_migrations WHERE version = 1')
     .get() as { c: number };
   if (applied.c === 0) {
     db.prepare(
       'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
-    ).run(1, 'initial_restomax_schema', new Date().toISOString());
+    ).run(1, 'initial_restomax_schema_and_tenants_users', new Date().toISOString());
   }
 }
 
-function seedDatabaseIfEmpty(db: DatabaseSync): void {
+function seedDatabaseIfEmpty(db: SqliteDatabase): void {
   const existingUsers = db
     .prepare('SELECT COUNT(*) as c FROM users')
     .get() as { c: number };
@@ -553,81 +680,97 @@ function seedDatabaseIfEmpty(db: DatabaseSync): void {
     daysAgo(70),
   );
 
-  // 4. Users (Super-admin + Restaurant staff)
+  // 4. Users (Super-admin + Tenant-isolated Restaurant staff with explicit RBAC roles)
   const demoPassHash = bcrypt.hashSync('RestoMax2026!', 10);
   const insertUser = db.prepare(`
-    INSERT INTO users (id, email, password_hash, full_name, phone, global_role, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+    INSERT INTO users (id, tenant_id, email, password_hash, full_name, phone, role, global_role, permissions_json, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', 'ACTIVE', ?)
   `);
   insertUser.run(
     'usr_superadmin',
+    null,
     'superadmin@restomax.ci',
     demoPassHash,
     'Amadou Koné',
     '+225 07 00 00 00 01',
     'SUPER_ADMIN',
+    'SUPER_ADMIN',
     daysAgo(90),
   );
   insertUser.run(
     'usr_owner_1',
+    resto1Id,
     'proprietaire@lesillage.ci',
     demoPassHash,
     'Awa Touré',
     '+225 07 00 00 01 10',
+    'OWNER',
     'USER',
     daysAgo(45),
   );
   insertUser.run(
     'usr_manager_1',
+    resto1Id,
     'manager@lesillage.ci',
     demoPassHash,
     'Jean-Marc Kouassi',
     '+225 07 00 00 01 11',
+    'MANAGER',
     'USER',
     daysAgo(40),
   );
   insertUser.run(
     'usr_cashier_1',
+    resto1Id,
     'caisse@lesillage.ci',
     demoPassHash,
     'Mariam Bamba',
     '+225 07 00 00 01 12',
+    'CASHIER',
     'USER',
     daysAgo(35),
   );
   insertUser.run(
     'usr_waiter_1',
+    resto1Id,
     'serveur@lesillage.ci',
     demoPassHash,
     'Cédric Yao',
     '+225 07 00 00 01 13',
+    'WAITER',
     'USER',
     daysAgo(30),
   );
   insertUser.run(
     'usr_kitchen_1',
+    resto1Id,
     'cuisine@lesillage.ci',
     demoPassHash,
     'Chef Ibrahim Diallo',
     '+225 07 00 00 01 14',
+    'KITCHEN_BAR',
     'USER',
     daysAgo(30),
   );
   insertUser.run(
     'usr_owner_2',
+    resto2Id,
     'proprietaire@terrasse.ci',
     demoPassHash,
     'Fatoumata Coulibaly',
     '+225 05 00 00 02 10',
+    'OWNER',
     'USER',
     daysAgo(6),
   );
   insertUser.run(
     'usr_owner_3',
+    resto3Id,
     'proprietaire@bassam.ci',
     demoPassHash,
     'Koffi Mensah',
     '+225 01 00 00 03 10',
+    'OWNER',
     'USER',
     daysAgo(70),
   );

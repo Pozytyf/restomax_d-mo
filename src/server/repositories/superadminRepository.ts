@@ -1,6 +1,11 @@
 import { getDb, generateId } from '../db.ts';
+import { BaseRepository } from './BaseRepository.ts';
 
-export const superadminRepository = {
+export class SuperadminRepository extends BaseRepository {
+  constructor() {
+    super({ tableName: 'tenants', tenantColumn: 'id' });
+  }
+
   getPlatformDashboardData() {
     const db = getDb();
     const counts = db
@@ -92,7 +97,7 @@ export const superadminRepository = {
       recentAudit,
       monthlyPlatformSeries,
     };
-  },
+  }
 
   findAllRestaurants() {
     const db = getDb();
@@ -110,14 +115,14 @@ export const superadminRepository = {
          ORDER BY r.created_at DESC`,
       )
       .all();
-  },
+  }
 
   findUserByEmail(email: string) {
     const db = getDb();
     return db
       .prepare('SELECT id FROM users WHERE lower(email) = lower(?)')
       .get(email);
-  },
+  }
 
   findPlanByCodeOrDefault(planCode: string) {
     const db = getDb();
@@ -130,7 +135,7 @@ export const superadminRepository = {
         trial_days: number;
       })
     );
-  },
+  }
 
   createRestaurantAdmin(params: {
     rid: string;
@@ -161,10 +166,11 @@ export const superadminRepository = {
     );
 
     db.prepare(
-      `INSERT INTO users (id, email, password_hash, full_name, phone, global_role, status, created_at)
-       VALUES (?, ?, ?, ?, ?, 'USER', 'ACTIVE', ?)`,
+      `INSERT INTO users (id, tenant_id, email, password_hash, full_name, phone, role, global_role, permissions_json, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'OWNER', 'USER', '[]', 'ACTIVE', ?)`,
     ).run(
       params.uid,
+      params.rid,
       params.cleanEmail,
       params.passwordHash,
       params.ownerName,
@@ -188,7 +194,7 @@ export const superadminRepository = {
       params.periodEnd,
       params.now,
     );
-  },
+  }
 
   updateRestaurantStatus(rid: string, status: string) {
     const db = getDb();
@@ -208,14 +214,14 @@ export const superadminRepository = {
         `UPDATE sessions SET revoked_at = ? WHERE restaurant_id = ? AND revoked_at IS NULL`,
       ).run(now, rid);
     }
-  },
+  }
 
   findAllPlans() {
     const db = getDb();
     return db
       .prepare('SELECT * FROM plans ORDER BY price_monthly_xof ASC')
       .all() as Array<Record<string, unknown>>;
-  },
+  }
 
   updatePlan(
     planId: string,
@@ -253,7 +259,7 @@ export const superadminRepository = {
       params.active,
       planId,
     );
-  },
+  }
 
   findAllSubscriptions() {
     const db = getDb();
@@ -269,7 +275,7 @@ export const superadminRepository = {
          ORDER BY s.created_at DESC`,
       )
       .all();
-  },
+  }
 
   findPlatformInvoices() {
     const db = getDb();
@@ -283,14 +289,14 @@ export const superadminRepository = {
          ORDER BY i.created_at DESC`,
       )
       .all();
-  },
+  }
 
   markInvoicePaid(invoiceId: string) {
     const db = getDb();
     db.prepare(
       `UPDATE platform_invoices SET status = 'PAID', paid_at = ? WHERE id = ?`,
     ).run(new Date().toISOString(), invoiceId);
-  },
+  }
 
   findAllUsers() {
     const db = getDb();
@@ -305,7 +311,7 @@ export const superadminRepository = {
          ORDER BY u.created_at DESC`,
       )
       .all();
-  },
+  }
 
   updateUserStatus(userId: string, status: string) {
     const db = getDb();
@@ -315,7 +321,7 @@ export const superadminRepository = {
         'UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL',
       ).run(new Date().toISOString(), userId);
     }
-  },
+  }
 
   findAllTicketsAndLeads() {
     const db = getDb();
@@ -343,7 +349,7 @@ export const superadminRepository = {
       tickets: tickets.map((t) => ({ ...t, messages: getMsgs.all(String(t.id)) })),
       leads,
     };
-  },
+  }
 
   addTicketReply(ticketId: string, author: string, body?: string, status?: string) {
     const db = getDb();
@@ -360,7 +366,7 @@ export const superadminRepository = {
         ticketId,
       );
     }
-  },
+  }
 
   findAuditLogs() {
     const db = getDb();
@@ -372,14 +378,14 @@ export const superadminRepository = {
          FROM audit_logs ORDER BY created_at DESC LIMIT 100`,
       )
       .all();
-  },
+  }
 
   findPlatformSettings() {
     const db = getDb();
     return db
       .prepare('SELECT key, value FROM platform_settings')
       .all() as Array<{ key: string; value: string }>;
-  },
+  }
 
   upsertPlatformSettings(entries: Array<[string, string]>) {
     const db = getDb();
@@ -391,5 +397,7 @@ export const superadminRepository = {
     for (const [k, v] of entries) {
       upsert.run(k, v, now);
     }
-  },
-};
+  }
+}
+
+export const superadminRepository = new SuperadminRepository();

@@ -6,12 +6,21 @@ import {
   broadcastOrderTrackerEvent,
   broadcastRestaurantEvent,
 } from '../ws.ts';
-import { restaurantRepository } from '../repositories/restaurantRepository.ts';
+import {
+  RestaurantRepository,
+  restaurantRepository,
+} from '../repositories/restaurantRepository.ts';
+import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
 import type { Permission, Role } from '../../types/index.ts';
 
-export const restaurantService = {
+export class RestaurantService extends BaseService<RestaurantRepository> {
+  constructor(repo = restaurantRepository) {
+    super(repo);
+  }
+
   getDashboard(rid: string) {
+    this.ensureTenantId(rid);
     const {
       revenueRow,
       pendingRow,
@@ -45,7 +54,7 @@ export const restaurantService = {
       recentOrders,
       staffActivity,
     };
-  },
+  }
 
   getMenu(rid: string) {
     const categories = restaurantRepository.findMenuCategories(rid);
@@ -58,7 +67,7 @@ export const restaurantService = {
         options: JSON.parse(String(r.options_json || '[]')),
       })),
     };
-  },
+  }
 
   createCategory(rid: string, body: Record<string, unknown>) {
     const { name, station } = body || {};
@@ -81,7 +90,7 @@ export const restaurantService = {
       sortOrder: count + 1,
       active: true,
     };
-  },
+  }
 
   createMenuItem(auth: AuthContext, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
@@ -133,7 +142,7 @@ export const restaurantService = {
     });
 
     return id;
-  },
+  }
 
   updateMenuItem(rid: string, itemId: string, body: Record<string, unknown>) {
     const existing = restaurantRepository.findMenuItemById(itemId, rid);
@@ -157,11 +166,11 @@ export const restaurantService = {
     });
 
     broadcastRestaurantEvent(rid, 'menu:updated', { itemId });
-  },
+  }
 
   getOrders(rid: string) {
     return restaurantRepository.findOrdersWithItems(rid);
-  },
+  }
 
   createPosOrder(auth: AuthContext, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
@@ -322,7 +331,7 @@ export const restaurantService = {
       }
       throw new AppError(500, 'Erreur création commande.');
     }
-  },
+  }
 
   updateOrderStatus(auth: AuthContext, orderId: string, status: unknown) {
     const rid = auth.restaurantId!;
@@ -359,11 +368,11 @@ export const restaurantService = {
 
     broadcastRestaurantEvent(rid, 'order:updated', { orderId, status });
     broadcastOrderTrackerEvent(orderId, 'order:updated', { orderId, status });
-  },
+  }
 
   getPayments(rid: string) {
     return restaurantRepository.findPayments(rid);
-  },
+  }
 
   payOrder(
     auth: AuthContext,
@@ -479,7 +488,7 @@ export const restaurantService = {
       }
       throw new AppError(500, 'Erreur lors de l’encaissement.');
     }
-  },
+  }
 
   refundPayment(auth: AuthContext, paymentId: string) {
     const rid = auth.restaurantId!;
@@ -520,11 +529,11 @@ export const restaurantService = {
       }
       throw new AppError(500, 'Erreur remboursement.');
     }
-  },
+  }
 
   getTables(rid: string) {
     return restaurantRepository.findTablesWithQrAndActiveOrder(rid);
-  },
+  }
 
   createTable(rid: string, body: Record<string, unknown>) {
     const { zone, label, capacity } = body || {};
@@ -538,7 +547,7 @@ export const restaurantService = {
       Math.max(1, Math.min(24, Number(capacity) || 4)),
     );
     return { id: tableId, qrToken };
-  },
+  }
 
   updateTableStatus(rid: string, tableId: string, status: unknown) {
     if (!['AVAILABLE', 'OCCUPIED', 'RESERVED'].includes(String(status))) {
@@ -546,7 +555,7 @@ export const restaurantService = {
     }
     restaurantRepository.updateTableStatus(tableId, rid, String(status));
     broadcastRestaurantEvent(rid, 'table:updated', { tableId, status });
-  },
+  }
 
   regenerateTableQr(auth: AuthContext, tableId: string) {
     const rid = auth.restaurantId!;
@@ -566,11 +575,11 @@ export const restaurantService = {
       details: `${tbl.label} -> version ${result.version}`,
     });
     return result;
-  },
+  }
 
   getStocks(rid: string) {
     return restaurantRepository.findStocksAndMovements(rid);
-  },
+  }
 
   createStockItem(rid: string, body: Record<string, unknown>) {
     const { name, unit, quantity, minThreshold, unitCostXof, supplierName } =
@@ -587,7 +596,7 @@ export const restaurantService = {
       unitCostXof: Math.round(Number(unitCostXof || 0)),
       supplierName: String(supplierName || '').trim(),
     });
-  },
+  }
 
   moveStock(auth: AuthContext, stockId: string, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
@@ -633,7 +642,7 @@ export const restaurantService = {
     }
 
     return nextQty;
-  },
+  }
 
   getStaff(rid: string) {
     const rows = restaurantRepository.findStaffMembers(rid);
@@ -642,7 +651,7 @@ export const restaurantService = {
       customPermissions: JSON.parse(String(r.custom_permissions_json || '[]')),
     }));
     return { staff, roleCeilings: ROLE_PERMISSION_CEILING };
-  },
+  }
 
   createStaff(auth: AuthContext, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
@@ -704,7 +713,7 @@ export const restaurantService = {
     });
 
     return { id: memberId, userId };
-  },
+  }
 
   updateStaff(
     auth: AuthContext,
@@ -757,11 +766,11 @@ export const restaurantService = {
       targetId: member.id,
       details: `status=${status || 'unchanged'} role=${role || 'unchanged'}`,
     });
-  },
+  }
 
   getCustomers(rid: string) {
     return restaurantRepository.findCustomers(rid);
-  },
+  }
 
   createCustomer(rid: string, body: Record<string, unknown>) {
     const { fullName, phone, email, preferences } = body || {};
@@ -775,11 +784,11 @@ export const restaurantService = {
       email: String(email || '').trim(),
       preferences: String(preferences || '').trim(),
     });
-  },
+  }
 
   getReservations(rid: string) {
     return restaurantRepository.findReservations(rid);
-  },
+  }
 
   createReservation(rid: string, body: Record<string, unknown>) {
     const { customerName, customerPhone, partySize, reservedAt, tableId, notes } =
@@ -800,7 +809,7 @@ export const restaurantService = {
       tableId: tableId ? String(tableId) : null,
       notes: String(notes || '').trim(),
     });
-  },
+  }
 
   updateReservationStatus(rid: string, id: string, status: unknown) {
     if (
@@ -809,7 +818,7 @@ export const restaurantService = {
       throw new AppError(400, 'Statut invalide.');
     }
     restaurantRepository.updateReservationStatus(id, rid, String(status));
-  },
+  }
 
   getFinanceSummary(rid: string) {
     const { sales, cogsRow, expenses, byMethod } =
@@ -831,7 +840,7 @@ export const restaurantService = {
       expenses,
       byMethod,
     };
-  },
+  }
 
   createExpense(rid: string, body: Record<string, unknown>) {
     const { category, description, amountXof, expenseDate } = body || {};
@@ -850,7 +859,7 @@ export const restaurantService = {
       amountXof: Math.round(Number(amountXof)),
       expenseDate: expenseDate ? String(expenseDate) : undefined,
     });
-  },
+  }
 
   exportOrdersCsv(rid: string): string {
     const rows = restaurantRepository.findOrdersForCsvExport(rid);
@@ -860,7 +869,7 @@ export const restaurantService = {
         `"${r.order_number}","${r.order_type}","${String(r.customer_name).replace(/"/g, '""')}","${r.status}",${r.total_xof},${r.paid_xof},"${r.created_at}"`,
     );
     return [header, ...lines].join('\n');
-  },
+  }
 
   getSettings(rid: string) {
     const { resto, sub } = restaurantRepository.findRestaurantSettings(rid);
@@ -890,7 +899,7 @@ export const restaurantService = {
       },
       subscription: sub || null,
     };
-  },
+  }
 
   updateSettings(auth: AuthContext, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
@@ -936,11 +945,11 @@ export const restaurantService = {
       targetType: 'RESTAURANT',
       targetId: rid,
     });
-  },
+  }
 
   getTickets(rid: string) {
     return restaurantRepository.findTicketsForRestaurant(rid);
-  },
+  }
 
   createTicket(auth: AuthContext, body: Record<string, unknown>) {
     const { subject, category, priority, message } = body || {};
@@ -959,5 +968,7 @@ export const restaurantService = {
         : 'MEDIUM',
       message: message.trim(),
     });
-  },
-};
+  }
+}
+
+export const restaurantService = new RestaurantService();

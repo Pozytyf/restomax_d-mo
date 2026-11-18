@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import type { DatabaseSync } from 'node:sqlite';
+import type { Database as SqliteDatabase } from 'better-sqlite3';
 import { getDb, generateId } from './db.ts';
 import { hasPermission, resolveEffectivePermissions } from './rbac.ts';
 import type { Permission, RestaurantStatus, Role, UserStatus } from '../types/index.ts';
@@ -50,7 +50,7 @@ export function extractToken(req: Request): string | null {
 }
 
 export function recordAudit(
-  db: DatabaseSync,
+  db: SqliteDatabase,
   params: {
     actorUserId: string | null;
     actorEmail: string;
@@ -82,7 +82,7 @@ export function recordAudit(
 }
 
 export function resolveAuthContext(
-  db: DatabaseSync,
+  db: SqliteDatabase,
   token: string,
 ): AuthContext | null {
   try {
@@ -93,7 +93,7 @@ export function resolveAuthContext(
     const session = db
       .prepare(
         `SELECT s.id, s.user_id, s.restaurant_id, s.expires_at, s.revoked_at,
-                u.email, u.full_name, u.global_role, u.status as user_status
+                u.tenant_id, u.email, u.full_name, u.global_role, u.status as user_status
          FROM sessions s
          JOIN users u ON u.id = s.user_id
          WHERE s.id = ? AND s.user_id = ?`,
@@ -105,6 +105,7 @@ export function resolveAuthContext(
           restaurant_id: string | null;
           expires_at: string;
           revoked_at: string | null;
+          tenant_id: string | null;
           email: string;
           full_name: string;
           global_role: string;
@@ -134,6 +135,9 @@ export function resolveAuthContext(
     }
 
     if (!session.restaurant_id) return null;
+    if (session.tenant_id && session.tenant_id !== session.restaurant_id) {
+      return null;
+    }
 
     const membership = db
       .prepare(
