@@ -5,13 +5,15 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { createExpressApp } from './src/server/app.ts';
 import { getDb } from './src/server/db.ts';
+import { runKnexMigrations } from './src/server/knex.ts';
 import { setupWebSocketServer } from './src/server/ws.ts';
 
 async function startServer() {
   const port = Number(process.env.PORT || 3000);
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Initialize database & run migrations/seed
+  // Initialize Knex SQLite3 pool, run initial schema migrations, and ensure seeded tables
+  await runKnexMigrations();
   getDb();
 
   const app = createExpressApp();

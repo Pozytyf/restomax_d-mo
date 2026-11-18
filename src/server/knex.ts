@@ -1,49 +1,17 @@
-import path from 'node:path';
 import knex, { type Knex } from 'knex';
+import knexConfig, { buildKnexConfig } from './db/knexfile.ts';
 import { AppError } from './services/errors.ts';
 
 let singletonKnex: Knex | null = null;
 
-interface Sqlite3Connection {
-  run: (sql: string, cb: (err?: Error | null) => void) => void;
-}
-
 export function createKnexInstance(dbPath?: string): Knex {
-  const filename =
-    dbPath ||
-    process.env.DATABASE_PATH ||
-    path.resolve(process.cwd(), 'data/restomax.db');
+  if (dbPath) {
+    return knex(buildKnexConfig(dbPath));
+  }
 
-  return knex({
-    client: 'sqlite3',
-    connection: { filename },
-    useNullAsDefault: true,
-    pool: {
-      afterCreate: (
-        conn: Sqlite3Connection,
-        done: (err: Error | null, conn: unknown) => void,
-      ) => {
-        conn.run('PRAGMA foreign_keys = ON;', (fkErr) => {
-          if (fkErr) {
-            done(fkErr, conn);
-            return;
-          }
-          if (filename !== ':memory:') {
-            conn.run('PRAGMA journal_mode = WAL;', (walErr) => {
-              done(walErr ?? null, conn);
-            });
-          } else {
-            done(null, conn);
-          }
-        });
-      },
-    },
-    migrations: {
-      directory: path.resolve(process.cwd(), 'src/server/migrations'),
-      extension: 'ts',
-      tableName: 'knex_migrations',
-    },
-  });
+  const env = (process.env.NODE_ENV || 'development') as keyof typeof knexConfig;
+  const config = knexConfig[env] ?? knexConfig.development;
+  return knex(config);
 }
 
 export function getKnex(): Knex {

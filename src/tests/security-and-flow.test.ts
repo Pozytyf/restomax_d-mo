@@ -11,6 +11,7 @@ import {
 } from '../server/knex.ts';
 import { BaseRepository } from '../server/repositories/BaseRepository.ts';
 import { BaseService } from '../server/services/BaseService.ts';
+import knexConfig from '../server/db/knexfile.ts';
 
 let server: http.Server;
 let baseUrl: string;
@@ -297,8 +298,16 @@ test('5. Session revocation & Restaurant suspension block old tokens', async () 
 });
 
 test('6. Knex migration (tenants & users) + better-sqlite3 multi-tenant isolation', async () => {
+  assert.equal(knexConfig.development.client, 'sqlite3');
+  assert.equal(knexConfig.development.pool?.min, 1);
+  assert.equal(knexConfig.development.pool?.max, 5);
+  assert.equal(knexConfig.test.pool?.max, 1);
+
   const kx = createKnexInstance(':memory:');
   try {
+    const fkPragma = await kx.raw('PRAGMA foreign_keys;');
+    assert.equal(fkPragma[0].foreign_keys, 1);
+
     await runKnexMigrations(kx);
 
     const hasTenants = await kx.schema.hasTable('tenants');
