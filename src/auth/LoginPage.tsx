@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, KeyRound } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { BrandLogo } from '../components/BrandLogo';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../app/providers/AuthProvider';
 import { useToast } from '../components/Toast';
 
 const DEMO_ACCOUNTS = [
-  { label: 'Propriétaire (Le Sillage)', email: 'proprietaire@lesillage.ci' },
-  { label: 'Caissier (Le Sillage)', email: 'caisse@lesillage.ci' },
-  { label: 'Serveur (Le Sillage)', email: 'serveur@lesillage.ci' },
-  { label: 'Cuisine / Bar (Le Sillage)', email: 'cuisine@lesillage.ci' },
-  { label: 'Super-admin Plateforme', email: 'superadmin@restomax.ci' },
-];
+  { key: 'owner', email: 'proprietaire@lesillage.ci' },
+  { key: 'cashier', email: 'caisse@lesillage.ci' },
+  { key: 'waiter', email: 'serveur@lesillage.ci' },
+  { key: 'kitchen', email: 'cuisine@lesillage.ci' },
+  { key: 'superadmin', email: 'superadmin@restomax.ci' },
+] as const;
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const { notify } = useToast();
   const navigate = useNavigate();
@@ -26,7 +29,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const user = await login(targetEmail, targetPass);
-      notify(`Bienvenue, ${user.fullName}`, 'success');
+      notify(t('auth.welcomeToast', { name: user.fullName }), 'success');
       if (user.role === 'SUPER_ADMIN') {
         navigate('/superadmin');
       } else if (user.role === 'KITCHEN_BAR') {
@@ -40,7 +43,7 @@ export function LoginPage() {
       }
     } catch (err) {
       notify(
-        err instanceof Error ? err.message : 'Échec de connexion.',
+        err instanceof Error ? err.message : t('auth.loginFailed'),
         'error',
       );
     } finally {
@@ -56,29 +59,32 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-[#F5F7FA] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full mx-auto">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-xs font-medium text-[#64748B] hover:text-[#182333] mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Retour au site vitrine</span>
-        </Link>
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-xs font-medium text-[#64748B] hover:text-[#182333]"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>{t('auth.backToSite')}</span>
+          </Link>
+          <LanguageSwitcher variant="light" />
+        </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
           <div className="mb-6">
             <BrandLogo theme="light" />
             <h1 className="mt-4 text-2xl font-extrabold text-[#182333]">
-              Connexion à votre espace
+              {t('auth.loginTitle')}
             </h1>
             <p className="mt-1 text-sm text-[#64748B]">
-              Accédez à votre restaurant ou au portail Super-admin.
+              {t('auth.loginSubtitle')}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#182333] mb-1">
-                Adresse email
+                {t('auth.emailLabel')}
               </label>
               <input
                 required
@@ -92,7 +98,7 @@ export function LoginPage() {
 
             <div>
               <label className="block text-xs font-semibold text-[#182333] mb-1">
-                Mot de passe
+                {t('auth.passwordLabel')}
               </label>
               <input
                 required
@@ -109,14 +115,14 @@ export function LoginPage() {
               disabled={submitting}
               className="w-full py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-60"
             >
-              {submitting ? 'Connexion…' : 'Se connecter'}
+              {submitting ? t('auth.loggingIn') : t('auth.submitLogin')}
             </button>
           </form>
 
           <div className="mt-7 pt-6 border-t border-slate-200">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#182333] mb-3">
               <KeyRound className="w-3.5 h-3.5 text-[#FF8738]" />
-              <span>Accès rapide environnement de démonstration</span>
+              <span>{t('auth.quickDemoTitle')}</span>
             </div>
             <div className="grid grid-cols-1 gap-2">
               {DEMO_ACCOUNTS.map((acc) => (
@@ -132,7 +138,7 @@ export function LoginPage() {
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-[#F5F7FA] hover:border-[#FF8738] text-left flex items-center justify-between text-xs transition-colors cursor-pointer"
                 >
                   <span className="font-semibold text-[#182333]">
-                    {acc.label}
+                    {t(`auth.demoAccounts.${acc.key}`)}
                   </span>
                   <span className="text-[#64748B] font-mono">{acc.email}</span>
                 </button>
@@ -141,12 +147,12 @@ export function LoginPage() {
           </div>
 
           <p className="mt-6 text-center text-xs text-[#64748B]">
-            Pas encore de compte ?{' '}
+            {t('auth.noAccountYet')}{' '}
             <Link
               to="/inscription"
               className="font-semibold text-[#FF8738] hover:underline"
             >
-              Créer mon restaurant
+              {t('auth.createMyRestaurant')}
             </Link>
           </p>
         </div>

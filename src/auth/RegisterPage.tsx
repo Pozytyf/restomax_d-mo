@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { BrandLogo } from '../components/BrandLogo';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../app/providers/AuthProvider';
 import { useToast } from '../components/Toast';
 
 export function RegisterPage() {
+  const { t } = useTranslation();
   const { registerRestaurant } = useAuth();
   const { notify } = useToast();
   const navigate = useNavigate();
@@ -28,14 +31,11 @@ export function RegisterPage() {
     setSubmitting(true);
     try {
       await registerRestaurant(form);
-      notify(
-        'Votre établissement a été créé avec ses 4 premières tables et QR codes.',
-        'success',
-      );
+      notify(t('auth.createSuccessToast'), 'success');
       navigate('/app');
     } catch (err) {
       notify(
-        err instanceof Error ? err.message : 'Erreur lors de la création.',
+        err instanceof Error ? err.message : t('auth.createErrorToast'),
         'error',
       );
     } finally {
@@ -46,28 +46,31 @@ export function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#F5F7FA] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-lg w-full mx-auto">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-xs font-medium text-[#64748B] hover:text-[#182333] mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Retour au site vitrine</span>
-        </Link>
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-xs font-medium text-[#64748B] hover:text-[#182333]"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>{t('auth.backToSite')}</span>
+          </Link>
+          <LanguageSwitcher variant="light" />
+        </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
           <BrandLogo theme="light" />
           <h1 className="mt-4 text-2xl font-extrabold text-[#182333]">
-            Créer votre espace restaurant
+            {t('auth.registerTitle')}
           </h1>
           <p className="mt-1 text-sm text-[#64748B]">
-            Démarrez votre essai gratuit avec un espace multi-tenant isolé en FCFA.
+            {t('auth.registerSubtitle')}
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#182333] mb-1">
-                  Nom du restaurant *
+                  {t('auth.restaurantNameLabel')}
                 </label>
                 <input
                   required
@@ -76,13 +79,13 @@ export function RegisterPage() {
                   onChange={(e) =>
                     setForm({ ...form, restaurantName: e.target.value })
                   }
-                  placeholder="Ex : Maquis Ébène"
+                  placeholder={t('auth.restaurantNamePlaceholder')}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8738]"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#182333] mb-1">
-                  Ville *
+                  {t('auth.cityLabel')}
                 </label>
                 <input
                   required
@@ -96,7 +99,7 @@ export function RegisterPage() {
 
             <div>
               <label className="block text-xs font-semibold text-[#182333] mb-1">
-                Nom du propriétaire / gérant *
+                {t('auth.ownerNameLabel')}
               </label>
               <input
                 required
@@ -105,7 +108,7 @@ export function RegisterPage() {
                 onChange={(e) =>
                   setForm({ ...form, ownerName: e.target.value })
                 }
-                placeholder="Ex : Kouadio Ange"
+                placeholder={t('auth.ownerNamePlaceholder')}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8738]"
               />
             </div>
@@ -113,7 +116,7 @@ export function RegisterPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#182333] mb-1">
-                  Email professionnel *
+                  {t('auth.proEmailLabel')}
                 </label>
                 <input
                   required
@@ -125,7 +128,7 @@ export function RegisterPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#182333] mb-1">
-                  Téléphone
+                  {t('auth.phoneLabel')}
                 </label>
                 <input
                   type="tel"
@@ -140,7 +143,7 @@ export function RegisterPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-[#182333] mb-1">
-                  Offre choisie (essai)
+                  {t('auth.planLabel')}
                 </label>
                 <select
                   value={form.planCode}
@@ -149,14 +152,16 @@ export function RegisterPage() {
                   }
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF8738]"
                 >
-                  <option value="ESSENTIEL">Essentiel</option>
-                  <option value="PROFESSIONNEL">Professionnel</option>
-                  <option value="PREMIUM">Premium</option>
+                  <option value="ESSENTIEL">{t('auth.plans.ESSENTIEL')}</option>
+                  <option value="PROFESSIONNEL">
+                    {t('auth.plans.PROFESSIONNEL')}
+                  </option>
+                  <option value="PREMIUM">{t('auth.plans.PREMIUM')}</option>
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#182333] mb-1">
-                  Mot de passe (min. 8 car.) *
+                  {t('auth.passwordMinLabel')}
                 </label>
                 <input
                   required
@@ -177,18 +182,18 @@ export function RegisterPage() {
               className="w-full py-3 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-60"
             >
               {submitting
-                ? 'Création de votre espace…'
-                : 'Créer mon restaurant'}
+                ? t('auth.creatingSpace')
+                : t('auth.createMyRestaurant')}
             </button>
           </form>
 
           <p className="mt-6 text-center text-xs text-[#64748B]">
-            Déjà inscrit ?{' '}
+            {t('auth.alreadyRegistered')}{' '}
             <Link
               to="/connexion"
               className="font-semibold text-[#FF8738] hover:underline"
             >
-              Se connecter
+              {t('auth.submitLogin')}
             </Link>
           </p>
         </div>

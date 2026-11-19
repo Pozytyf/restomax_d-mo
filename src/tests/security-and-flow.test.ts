@@ -298,7 +298,7 @@ test('5. Session revocation & Restaurant suspension block old tokens', async () 
 });
 
 test('6. Knex migration (tenants & users) + better-sqlite3 multi-tenant isolation', async () => {
-  assert.equal(knexConfig.development.client, 'sqlite3');
+  assert.equal(knexConfig.development.client, 'better-sqlite3');
   assert.equal(knexConfig.development.pool?.min, 1);
   assert.equal(knexConfig.development.pool?.max, 5);
   assert.equal(knexConfig.test.pool?.max, 1);

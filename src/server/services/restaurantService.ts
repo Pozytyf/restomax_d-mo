@@ -12,6 +12,7 @@ import {
 } from '../repositories/restaurantRepository.ts';
 import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
+import { sendCriticalStockAlertEmail } from './mailer.ts';
 import type { Permission, Role } from '../../types/index.ts';
 
 export class RestaurantService extends BaseService<RestaurantRepository> {
@@ -581,24 +582,147 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
     return restaurantRepository.findStocksAndMovements(rid);
   }
 
-  createStockItem(rid: string, body: Record<string, unknown>) {
+  private resolveStockAlertRecipients(
+    rid: string,
+    customEmailsCsv: string,
+  ): string[] {
+    const parsed = customEmailsCsv
+      .split(/[,;\s]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@'));
+    if (parsed.length > 0) {
+      return Array.from(new Set(parsed));
+    }
+    return restaurantRepository.findManagerEmailsForRestaurant(rid);
+  }
+
+  async dispatchCriticalStockAlert(params: {
+    auth: AuthContext;
+    stockId: string;
+    stockName: string;
+    quantity: number;
+    minThreshold: number;
+    unit: string;
+    supplierName: string;
+  }) {
+    const rid = params.auth.restaurantId!;
+    const settings = restaurantRepository.findStockAlertSettings(rid);
+    const recipients = this.resolveStockAlertRecipients(
+      rid,
+      settings.recipientEmails,
+    );
+    const restaurantName = restaurantRepository.findRestaurantNameById(rid);
+
+    let emailResult: {
+      dispatched: boolean;
+      status: 'SENT' | 'QUEUED_NO_SMTP' | 'SKIPPED' | 'FAILED';
+      recipients: string[];
+    } = {
+      dispatched: false,
+      status: 'SKIPPED',
+      recipients,
+    };
+
+    if (settings.emailEnabled && recipients.length > 0) {
+      emailResult = await sendCriticalStockAlertEmail({
+        restaurantName,
+        stockName: params.stockName,
+        quantity: params.quantity,
+        minThreshold: params.minThreshold,
+        unit: params.unit,
+        supplierName: params.supplierName,
+        recipients,
+      });
+    }
+
+    const title = `Stock critique : ${params.stockName}`;
+    const message = `${params.stockName} est à ${params.quantity} ${params.unit} (seuil minimal : ${params.minThreshold} ${params.unit}).`;
+
+    let notification = null;
+    if (settings.inAppEnabled) {
+      notification = restaurantRepository.createNotification({
+        rid,
+        type: 'STOCK_CRITICAL',
+        title,
+        message,
+        stockId: params.stockId,
+        emailDispatched: emailResult.dispatched,
+        emailRecipients: emailResult.recipients.join(', '),
+        emailStatus: emailResult.status,
+      });
+    }
+
+    recordAudit(getDb(), {
+      actorUserId: params.auth.userId,
+      actorEmail: params.auth.email,
+      actorRole: params.auth.role,
+      restaurantId: rid,
+      action: 'STOCK_CRITICAL_ALERT',
+      targetType: 'STOCK',
+      targetId: params.stockId,
+      details: `${params.stockName}: ${params.quantity}/${params.minThreshold} ${params.unit} (email=${emailResult.status})`,
+    });
+
+    broadcastRestaurantEvent(rid, 'stock:alert', {
+      stockId: params.stockId,
+      name: params.stockName,
+      quantity: params.quantity,
+      minThreshold: params.minThreshold,
+      unit: params.unit,
+      notificationId: notification?.id || null,
+      emailStatus: emailResult.status,
+    });
+
+    return {
+      notification,
+      emailStatus: emailResult.status,
+      recipients: emailResult.recipients,
+    };
+  }
+
+  async createStockItem(auth: AuthContext, body: Record<string, unknown>) {
+    const rid = auth.restaurantId!;
     const { name, unit, quantity, minThreshold, unitCostXof, supplierName } =
       body || {};
     if (typeof name !== 'string' || name.trim().length < 2) {
       throw new AppError(400, 'Nom d’ingrédient requis.');
     }
-    return restaurantRepository.createStockItem({
+    const cleanName = name.trim();
+    const cleanUnit = String(unit || 'kg').trim();
+    const cleanQty = Math.max(0, Number(quantity || 0));
+    const cleanThreshold = Math.max(0, Number(minThreshold ?? 5));
+    const cleanSupplier = String(supplierName || '').trim();
+
+    const id = restaurantRepository.createStockItem({
       rid,
-      name: name.trim(),
-      unit: String(unit || 'kg').trim(),
-      quantity: Number(quantity || 0),
-      minThreshold: Number(minThreshold || 5),
+      name: cleanName,
+      unit: cleanUnit,
+      quantity: cleanQty,
+      minThreshold: cleanThreshold,
       unitCostXof: Math.round(Number(unitCostXof || 0)),
-      supplierName: String(supplierName || '').trim(),
+      supplierName: cleanSupplier,
     });
+
+    if (cleanQty <= cleanThreshold) {
+      await this.dispatchCriticalStockAlert({
+        auth,
+        stockId: id,
+        stockName: cleanName,
+        quantity: cleanQty,
+        minThreshold: cleanThreshold,
+        unit: cleanUnit,
+        supplierName: cleanSupplier,
+      });
+    }
+
+    return id;
   }
 
-  moveStock(auth: AuthContext, stockId: string, body: Record<string, unknown>) {
+  async moveStock(
+    auth: AuthContext,
+    stockId: string,
+    body: Record<string, unknown>,
+  ) {
     const rid = auth.restaurantId!;
     const { movementType, quantity, reason } = body || {};
     const validTypes = ['IN', 'OUT', 'LOSS', 'INVENTORY'];
@@ -633,15 +757,109 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
       userId: auth.userId,
     });
 
-    if (nextQty <= stock.min_threshold) {
-      broadcastRestaurantEvent(rid, 'stock:alert', {
+    let alertTriggered = false;
+    if (nextQty <= stock.min_threshold && nextQty !== stock.quantity) {
+      alertTriggered = true;
+      await this.dispatchCriticalStockAlert({
+        auth,
         stockId: stock.id,
-        name: stock.name,
+        stockName: stock.name,
         quantity: nextQty,
+        minThreshold: stock.min_threshold,
+        unit: stock.unit,
+        supplierName: stock.supplier_name,
       });
     }
 
-    return nextQty;
+    return { quantity: nextQty, alertTriggered };
+  }
+
+  getStockAlertConfig(rid: string) {
+    this.ensureTenantId(rid);
+    const settings = restaurantRepository.findStockAlertSettings(rid);
+    const resolvedRecipients = this.resolveStockAlertRecipients(
+      rid,
+      settings.recipientEmails,
+    );
+    const recentAlerts = restaurantRepository.findRecentStockAlerts(rid);
+    return {
+      settings: {
+        ...settings,
+        resolvedRecipients,
+      },
+      recentAlerts,
+    };
+  }
+
+  updateStockAlertConfig(auth: AuthContext, body: Record<string, unknown>) {
+    const rid = auth.restaurantId!;
+    const { inAppEnabled, emailEnabled, recipientEmails } = body || {};
+    const current = restaurantRepository.findStockAlertSettings(rid);
+
+    const updated = restaurantRepository.upsertStockAlertSettings({
+      rid,
+      inAppEnabled:
+        typeof inAppEnabled === 'boolean' ? inAppEnabled : current.inAppEnabled,
+      emailEnabled:
+        typeof emailEnabled === 'boolean' ? emailEnabled : current.emailEnabled,
+      recipientEmails:
+        typeof recipientEmails === 'string'
+          ? recipientEmails.trim()
+          : current.recipientEmails,
+    });
+
+    recordAudit(getDb(), {
+      actorUserId: auth.userId,
+      actorEmail: auth.email,
+      actorRole: auth.role,
+      restaurantId: rid,
+      action: 'STOCK_ALERT_CONFIG_UPDATED',
+      targetType: 'RESTAURANT',
+      targetId: rid,
+      details: `inApp=${updated.inAppEnabled} email=${updated.emailEnabled}`,
+    });
+
+    return {
+      ...updated,
+      resolvedRecipients: this.resolveStockAlertRecipients(
+        rid,
+        updated.recipientEmails,
+      ),
+    };
+  }
+
+  async triggerManualStockAlert(auth: AuthContext, stockId: string) {
+    const rid = auth.restaurantId!;
+    const stock = restaurantRepository.findStockById(stockId, rid);
+    if (!stock) {
+      throw new AppError(404, 'Article de stock introuvable.');
+    }
+    return this.dispatchCriticalStockAlert({
+      auth,
+      stockId: stock.id,
+      stockName: stock.name,
+      quantity: stock.quantity,
+      minThreshold: stock.min_threshold,
+      unit: stock.unit,
+      supplierName: stock.supplier_name,
+    });
+  }
+
+  getNotifications(rid: string) {
+    this.ensureTenantId(rid);
+    const notifications =
+      restaurantRepository.findNotificationsForRestaurant(rid);
+    const unreadCount = notifications.filter((n) => !n.isRead).length;
+    return { notifications, unreadCount };
+  }
+
+  markNotificationsRead(rid: string, body: Record<string, unknown>) {
+    this.ensureTenantId(rid);
+    const id = typeof body?.id === 'string' ? body.id : undefined;
+    restaurantRepository.markNotificationsRead(rid, id);
+    broadcastRestaurantEvent(rid, 'notifications:updated', {
+      id: id || null,
+    });
   }
 
   getStaff(rid: string) {
@@ -821,8 +1039,15 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
   }
 
   getFinanceSummary(rid: string) {
-    const { sales, cogsRow, expenses, byMethod } =
-      restaurantRepository.findFinanceSummary(rid);
+    const {
+      sales,
+      todayDate,
+      todaySales,
+      todayPayments,
+      cogsRow,
+      expenses,
+      byMethod,
+    } = restaurantRepository.findFinanceSummary(rid);
     const totalExpenses = expenses.reduce(
       (acc, e) => acc + Number(e.amountXof || 0),
       0,
@@ -836,6 +1061,13 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
         expensesXof: totalExpenses,
         netEstimatedMarginXof:
           Number(sales.gross_sales) - Number(cogsRow.total_cogs) - totalExpenses,
+      },
+      today: {
+        date: todayDate,
+        revenueXof: Number(todaySales.revenue_xof),
+        collectedXof: Number(todayPayments.collected_xof),
+        ordersCount: Number(todaySales.orders_count),
+        avgBasketXof: Math.round(Number(todaySales.avg_basket)),
       },
       expenses,
       byMethod,

@@ -117,10 +117,12 @@ export class PublicRepository extends BaseRepository {
     const db = getDb();
     return db
       .prepare(
-        `SELECT id, category_id, name, description, price_xof, image_url, options_json
-         FROM menu_items
-         WHERE restaurant_id = ? AND available = 1
-         ORDER BY sort_order ASC, name ASC`,
+        `SELECT m.id, m.category_id, m.name, m.description, m.price_xof, m.image_url, m.options_json,
+                c.station
+         FROM menu_items m
+         JOIN menu_categories c ON c.id = m.category_id
+         WHERE m.restaurant_id = ? AND m.available = 1 AND c.active = 1
+         ORDER BY c.sort_order ASC, m.sort_order ASC, m.name ASC`,
       )
       .all(restaurantId) as Array<Record<string, unknown>>;
   }
@@ -146,7 +148,7 @@ export class PublicRepository extends BaseRepository {
     const db = getDb();
     return db
       .prepare(
-        `SELECT m.id, m.name, m.price_xof, m.available, m.options_json, c.station
+        `SELECT m.id, m.name, m.price_xof, m.available, m.options_json, c.station, c.active as category_active
          FROM menu_items m
          JOIN menu_categories c ON c.id = m.category_id
          WHERE m.id = ? AND m.restaurant_id = ?`,
@@ -232,8 +234,8 @@ export class PublicRepository extends BaseRepository {
     const db = getDb();
     const order = db
       .prepare(
-        `SELECT o.id, o.order_number, o.status, o.total_xof, o.paid_xof, o.created_at, o.updated_at,
-                t.label as table_label, r.name as restaurant_name
+        `SELECT o.id, o.order_number, o.status, o.total_xof, o.paid_xof, o.notes, o.customer_name,
+                o.created_at, o.updated_at, t.label as table_label, r.name as restaurant_name
          FROM orders o
          JOIN qr_codes q ON q.table_id = o.table_id AND q.restaurant_id = o.restaurant_id
          JOIN dining_tables t ON t.id = o.table_id
@@ -246,7 +248,7 @@ export class PublicRepository extends BaseRepository {
 
     const items = db
       .prepare(
-        `SELECT id, name, quantity, options_summary, line_total_xof, prep_status
+        `SELECT id, name, station, quantity, options_summary, line_total_xof, notes, prep_status
          FROM order_items WHERE order_id = ?`,
       )
       .all(orderId);

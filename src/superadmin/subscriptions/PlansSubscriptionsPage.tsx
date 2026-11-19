@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -6,6 +7,7 @@ import { formatDateFr, formatFcfa } from '../../utils/format';
 import type { Plan } from '../../types';
 
 export function PlansSubscriptionsPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subs, setSubs] = useState<
@@ -64,7 +66,7 @@ export function PlansSubscriptionsPage() {
   };
 
   return (
-    <SuperAdminLayout title="Plans & Abonnements">
+    <SuperAdminLayout title={t('superadmin.subscriptionsTitle')}>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {plans.map((p) => (

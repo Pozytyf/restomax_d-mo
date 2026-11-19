@@ -685,10 +685,18 @@ export class RestaurantRepository extends BaseRepository {
     const db = getDb();
     return db
       .prepare(
-        'SELECT id, quantity, name, min_threshold FROM stocks WHERE id = ? AND restaurant_id = ?',
+        `SELECT id, quantity, name, unit, min_threshold, supplier_name
+         FROM stocks WHERE id = ? AND restaurant_id = ?`,
       )
       .get(stockId, rid) as
-      | { id: string; quantity: number; name: string; min_threshold: number }
+      | {
+          id: string;
+          quantity: number;
+          name: string;
+          unit: string;
+          min_threshold: number;
+          supplier_name: string;
+        }
       | undefined;
   }
 
@@ -721,6 +729,220 @@ export class RestaurantRepository extends BaseRepository {
       params.userId,
       now,
     );
+  }
+
+  findRestaurantNameById(rid: string): string {
+    const db = getDb();
+    const row = db
+      .prepare('SELECT name FROM restaurants WHERE id = ?')
+      .get(rid) as { name: string } | undefined;
+    return row?.name || 'Établissement Resto’MAX';
+  }
+
+  findStockAlertSettings(rid: string) {
+    const db = getDb();
+    const row = db
+      .prepare(
+        `SELECT restaurant_id as restaurantId, in_app_enabled as inAppEnabled,
+                email_enabled as emailEnabled, recipient_emails as recipientEmails,
+                updated_at as updatedAt
+         FROM stock_alert_settings WHERE restaurant_id = ?`,
+      )
+      .get(rid) as
+      | {
+          restaurantId: string;
+          inAppEnabled: number;
+          emailEnabled: number;
+          recipientEmails: string;
+          updatedAt: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return {
+        restaurantId: rid,
+        inAppEnabled: true,
+        emailEnabled: true,
+        recipientEmails: '',
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    return {
+      restaurantId: row.restaurantId,
+      inAppEnabled: Boolean(row.inAppEnabled),
+      emailEnabled: Boolean(row.emailEnabled),
+      recipientEmails: row.recipientEmails,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  upsertStockAlertSettings(params: {
+    rid: string;
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+    recipientEmails: string;
+  }) {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO stock_alert_settings (restaurant_id, in_app_enabled, email_enabled, recipient_emails, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(restaurant_id) DO UPDATE SET
+         in_app_enabled = excluded.in_app_enabled,
+         email_enabled = excluded.email_enabled,
+         recipient_emails = excluded.recipient_emails,
+         updated_at = excluded.updated_at`,
+    ).run(
+      params.rid,
+      params.inAppEnabled ? 1 : 0,
+      params.emailEnabled ? 1 : 0,
+      params.recipientEmails,
+      now,
+    );
+    return this.findStockAlertSettings(params.rid);
+  }
+
+  findManagerEmailsForRestaurant(rid: string): string[] {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT u.email
+         FROM restaurant_members rm
+         JOIN users u ON u.id = rm.user_id
+         WHERE rm.restaurant_id = ?
+           AND rm.status = 'ACTIVE'
+           AND u.status = 'ACTIVE'
+           AND rm.role IN ('OWNER', 'MANAGER')`,
+      )
+      .all(rid) as Array<{ email: string }>;
+    return rows.map((r) => r.email);
+  }
+
+  createNotification(params: {
+    rid: string;
+    type: string;
+    title: string;
+    message: string;
+    stockId: string | null;
+    emailDispatched: boolean;
+    emailRecipients: string;
+    emailStatus: 'SENT' | 'QUEUED_NO_SMTP' | 'SKIPPED' | 'FAILED';
+  }) {
+    const db = getDb();
+    const id = generateId('ntf');
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO notifications (
+        id, restaurant_id, type, title, message, stock_id,
+        email_dispatched, email_recipients, email_status, is_read, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+    ).run(
+      id,
+      params.rid,
+      params.type,
+      params.title,
+      params.message,
+      params.stockId,
+      params.emailDispatched ? 1 : 0,
+      params.emailRecipients,
+      params.emailStatus,
+      now,
+    );
+    return {
+      id,
+      restaurantId: params.rid,
+      type: params.type,
+      title: params.title,
+      message: params.message,
+      stockId: params.stockId,
+      emailDispatched: params.emailDispatched,
+      emailRecipients: params.emailRecipients,
+      emailStatus: params.emailStatus,
+      isRead: false,
+      createdAt: now,
+    };
+  }
+
+  findNotificationsForRestaurant(rid: string, limit = 30) {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT id, restaurant_id as restaurantId, type, title, message,
+                stock_id as stockId, email_dispatched as emailDispatched,
+                email_recipients as emailRecipients, email_status as emailStatus,
+                is_read as isRead, created_at as createdAt
+         FROM notifications
+         WHERE restaurant_id = ?
+         ORDER BY created_at DESC
+         LIMIT ?`,
+      )
+      .all(rid, limit) as Array<Record<string, unknown>>;
+
+    return rows.map((r) => ({
+      id: String(r.id),
+      restaurantId: String(r.restaurantId),
+      type: String(r.type),
+      title: String(r.title),
+      message: String(r.message),
+      stockId: r.stockId ? String(r.stockId) : null,
+      emailDispatched: Boolean(r.emailDispatched),
+      emailRecipients: String(r.emailRecipients || ''),
+      emailStatus: String(r.emailStatus || 'SKIPPED') as
+        | 'SENT'
+        | 'QUEUED_NO_SMTP'
+        | 'SKIPPED'
+        | 'FAILED',
+      isRead: Boolean(r.isRead),
+      createdAt: String(r.createdAt),
+    }));
+  }
+
+  markNotificationsRead(rid: string, notificationId?: string) {
+    const db = getDb();
+    if (notificationId) {
+      db.prepare(
+        'UPDATE notifications SET is_read = 1 WHERE id = ? AND restaurant_id = ?',
+      ).run(notificationId, rid);
+      return;
+    }
+    db.prepare('UPDATE notifications SET is_read = 1 WHERE restaurant_id = ?').run(
+      rid,
+    );
+  }
+
+  findRecentStockAlerts(rid: string, limit = 15) {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `SELECT id, restaurant_id as restaurantId, type, title, message,
+                stock_id as stockId, email_dispatched as emailDispatched,
+                email_recipients as emailRecipients, email_status as emailStatus,
+                is_read as isRead, created_at as createdAt
+         FROM notifications
+         WHERE restaurant_id = ? AND type = 'STOCK_CRITICAL'
+         ORDER BY created_at DESC
+         LIMIT ?`,
+      )
+      .all(rid, limit) as Array<Record<string, unknown>>;
+
+    return rows.map((r) => ({
+      id: String(r.id),
+      restaurantId: String(r.restaurantId),
+      type: String(r.type),
+      title: String(r.title),
+      message: String(r.message),
+      stockId: r.stockId ? String(r.stockId) : null,
+      emailDispatched: Boolean(r.emailDispatched),
+      emailRecipients: String(r.emailRecipients || ''),
+      emailStatus: String(r.emailStatus || 'SKIPPED') as
+        | 'SENT'
+        | 'QUEUED_NO_SMTP'
+        | 'SKIPPED'
+        | 'FAILED',
+      isRead: Boolean(r.isRead),
+      createdAt: String(r.createdAt),
+    }));
   }
 
   findStaffMembers(rid: string) {
@@ -922,6 +1144,14 @@ export class RestaurantRepository extends BaseRepository {
 
   findFinanceSummary(rid: string) {
     const db = getDb();
+    const todayDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Abidjan',
+    }).format(new Date());
+    const startOfTodayIso = `${todayDate}T00:00:00.000Z`;
+    const endOfTodayIso = new Date(
+      new Date(startOfTodayIso).getTime() + 86_400_000,
+    ).toISOString();
+
     const sales = db
       .prepare(
         `SELECT COALESCE(SUM(total_xof), 0) as gross_sales,
@@ -930,6 +1160,30 @@ export class RestaurantRepository extends BaseRepository {
          FROM orders WHERE restaurant_id = ? AND status != 'CANCELLED'`,
       )
       .get(rid) as { gross_sales: number; total_tax: number; collected: number };
+
+    const todaySales = db
+      .prepare(
+        `SELECT COALESCE(SUM(total_xof), 0) as revenue_xof,
+                COUNT(*) as orders_count,
+                COALESCE(AVG(total_xof), 0) as avg_basket
+         FROM orders
+         WHERE restaurant_id = ? AND status != 'CANCELLED'
+           AND created_at >= ? AND created_at < ?`,
+      )
+      .get(rid, startOfTodayIso, endOfTodayIso) as {
+      revenue_xof: number;
+      orders_count: number;
+      avg_basket: number;
+    };
+
+    const todayPayments = db
+      .prepare(
+        `SELECT COALESCE(SUM(amount_xof), 0) as collected_xof
+         FROM payments
+         WHERE restaurant_id = ? AND status = 'PAID'
+           AND created_at >= ? AND created_at < ?`,
+      )
+      .get(rid, startOfTodayIso, endOfTodayIso) as { collected_xof: number };
 
     const cogsRow = db
       .prepare(
@@ -956,7 +1210,15 @@ export class RestaurantRepository extends BaseRepository {
       )
       .all(rid);
 
-    return { sales, cogsRow, expenses, byMethod };
+    return {
+      sales,
+      todayDate,
+      todaySales,
+      todayPayments,
+      cogsRow,
+      expenses,
+      byMethod,
+    };
   }
 
   createExpense(params: {

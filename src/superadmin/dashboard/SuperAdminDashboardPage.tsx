@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   CheckCircle2,
   CreditCard,
@@ -49,6 +50,7 @@ interface SuperAdminDashboardData {
 }
 
 export function SuperAdminDashboardPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<SuperAdminDashboardData | null>(null);
 
   const load = useCallback(() => {
@@ -62,7 +64,7 @@ export function SuperAdminDashboardPage() {
   }, [load]);
 
   return (
-    <SuperAdminLayout title="Dashboard Super-admin" onRealtimeEvent={load}>
+    <SuperAdminLayout title={t('superadmin.dashboardTitle')} onRealtimeEvent={load}>
       {!data ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((n) => (
@@ -78,34 +80,37 @@ export function SuperAdminDashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex justify-between text-xs text-[#64748B]">
-                <span>Restaurants enregistrés</span>
+                <span>{t('superadmin.registeredRestaurants')}</span>
                 <Store className="w-4 h-4 text-[#182333]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
                 {data.kpis.totalRestaurants}
               </p>
               <p className="mt-1 text-xs text-[#64748B] tabular-nums">
-                {data.kpis.activeRestaurants} actifs · {data.kpis.trialRestaurants}{' '}
-                essai · {data.kpis.suspendedRestaurants} suspendus
+                {t('superadmin.restaurantStats', {
+                  active: data.kpis.activeRestaurants,
+                  trial: data.kpis.trialRestaurants,
+                  suspended: data.kpis.suspendedRestaurants,
+                })}
               </p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex justify-between text-xs text-[#64748B]">
-                <span>Revenus plateforme (Circuit A)</span>
+                <span>{t('superadmin.platformRevenue')}</span>
                 <CreditCard className="w-4 h-4 text-[#14B8A6]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
                 {formatFcfa(data.kpis.platformRevenueXof)}
               </p>
               <p className="mt-1 text-xs text-[#14B8A6]">
-                Strictement séparé des caisses restaurants
+                {t('superadmin.strictSeparation')}
               </p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex justify-between text-xs text-[#64748B]">
-                <span>Paiements en attente</span>
+                <span>{t('superadmin.pendingPayments')}</span>
                 <ShieldAlert className="w-4 h-4 text-[#E5A32A]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#E5A32A] tabular-nums">
@@ -115,33 +120,33 @@ export function SuperAdminDashboardPage() {
                 to="/superadmin/billing"
                 className="mt-1 inline-block text-xs font-semibold text-[#182333] hover:text-[#FF8738]"
               >
-                Voir facturation
+                {t('superadmin.viewBilling')}
               </Link>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex justify-between text-xs text-[#64748B]">
-                <span>Utilisateurs actifs</span>
+                <span>{t('superadmin.activeUsers')}</span>
                 <Users className="w-4 h-4 text-[#FF8738]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
                 {data.kpis.activeUsersCount}
               </p>
               <p className="mt-1 text-xs text-[#64748B] tabular-nums">
-                {data.kpis.activeSubscriptions} abonnements actifs/essai
+                {t('superadmin.activeSubsCount', { count: data.kpis.activeSubscriptions })}
               </p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <div className="flex justify-between text-xs text-[#64748B]">
-                <span>Tickets & Prospects</span>
+                <span>{t('superadmin.ticketsAndLeads')}</span>
                 <LifeBuoy className="w-4 h-4 text-[#FF8738]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#FF8738] tabular-nums">
-                {data.kpis.openTicketsCount} ouverts
+                {t('superadmin.openTicketsCount', { count: data.kpis.openTicketsCount })}
               </p>
               <p className="mt-1 text-xs text-[#64748B] tabular-nums">
-                {data.kpis.leadsCount} demandes site vitrine
+                {t('superadmin.websiteLeadsCount', { count: data.kpis.leadsCount })}
               </p>
             </div>
           </div>
@@ -151,25 +156,25 @@ export function SuperAdminDashboardPage() {
             <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-base font-bold text-[#182333]">
-                  Restaurants clients récents
+                  {t('superadmin.recentRestaurants')}
                 </h2>
                 <Link
                   to="/superadmin/restaurants"
                   className="text-xs font-semibold text-[#FF8738] hover:underline"
                 >
-                  Gérer tous
+                  {t('superadmin.manageAll')}
                 </Link>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
                     <tr>
-                      <th className="px-5 py-3 font-semibold">Établissement</th>
-                      <th className="px-5 py-3 font-semibold">Ville</th>
-                      <th className="px-5 py-3 font-semibold">Offre</th>
-                      <th className="px-5 py-3 font-semibold">Statut</th>
+                      <th className="px-5 py-3 font-semibold">{t('superadmin.venueCol')}</th>
+                      <th className="px-5 py-3 font-semibold">{t('superadmin.cityCol')}</th>
+                      <th className="px-5 py-3 font-semibold">{t('superadmin.planCol')}</th>
+                      <th className="px-5 py-3 font-semibold">{t('superadmin.statusCol')}</th>
                       <th className="px-5 py-3 font-semibold text-right">
-                        Créé le
+                        {t('superadmin.createdAtCol')}
                       </th>
                     </tr>
                   </thead>
@@ -211,13 +216,13 @@ export function SuperAdminDashboardPage() {
             <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-bold text-[#182333]">
-                  Activité & Audit Sécurité
+                  {t('superadmin.auditActivityTitle')}
                 </h2>
                 <Link
                   to="/superadmin/audit"
                   className="text-xs font-semibold text-[#FF8738] hover:underline"
                 >
-                  Journal complet
+                  {t('superadmin.fullLog')}
                 </Link>
               </div>
               <div className="space-y-3">
@@ -244,10 +249,10 @@ export function SuperAdminDashboardPage() {
               <div className="p-4 rounded-xl bg-[#F5F7FA] border border-slate-200 space-y-1.5 text-xs">
                 <div className="flex items-center gap-2 font-semibold text-[#182333]">
                   <CheckCircle2 className="w-4 h-4 text-[#14B8A6]" />
-                  <span>Santé de la plateforme</span>
+                  <span>{t('superadmin.platformHealth')}</span>
                 </div>
                 <p className="text-[#64748B]">
-                  Base multi-tenant SQLite WAL active · WebSockets temps réel · Mode paiement TEST actif
+                  {t('superadmin.platformHealthDesc')}
                 </p>
               </div>
             </div>

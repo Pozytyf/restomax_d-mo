@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -6,6 +7,7 @@ import { formatDateTimeFr } from '../../utils/format';
 import type { SupportTicket } from '../../types';
 
 export function SupportAdminPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [leads, setLeads] = useState<
@@ -54,7 +56,7 @@ export function SupportAdminPage() {
   };
 
   return (
-    <SuperAdminLayout title="Support & Demandes site vitrine">
+    <SuperAdminLayout title={t('superadmin.supportTitle')}>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-4">
           <h2 className="text-base font-bold text-[#182333]">

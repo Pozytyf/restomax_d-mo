@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 export function PlatformSettingsPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [settings, setSettings] = useState<Record<string, string>>({});
 
@@ -30,7 +32,7 @@ export function PlatformSettingsPage() {
   };
 
   return (
-    <SuperAdminLayout title="Paramètres de la plateforme">
+    <SuperAdminLayout title={t('superadmin.settingsTitle')}>
       <form
         onSubmit={handleSave}
         className="bg-white rounded-xl border border-slate-200 p-6 max-w-2xl space-y-4"

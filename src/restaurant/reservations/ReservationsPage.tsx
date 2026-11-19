@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { apiFetch } from '../../services/api';
@@ -7,6 +8,7 @@ import { formatDateTimeFr } from '../../utils/format';
 import type { DiningTable, Reservation } from '../../types';
 
 export function ReservationsPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [tables, setTables] = useState<DiningTable[]>([]);
@@ -68,7 +70,7 @@ export function ReservationsPage() {
 
   return (
     <RestaurantLayout
-      title="Réservations"
+      title={t('pages.reservationsTitle')}
       actions={
         <button
           type="button"
@@ -76,7 +78,7 @@ export function ReservationsPage() {
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>Nouvelle réservation</span>
+          <span>{t('pages.newReservationBtn')}</span>
         </button>
       }
     >
@@ -84,10 +86,12 @@ export function ReservationsPage() {
         {showAdd && (
           <form
             onSubmit={handleCreate}
-            className="bg-white rounded-xl border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end"
+            className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end"
           >
             <div>
-              <label className="block text-xs font-semibold mb-1">Client</label>
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+                Client
+              </label>
               <input
                 required
                 type="text"
@@ -95,11 +99,11 @@ export function ReservationsPage() {
                 onChange={(e) =>
                   setForm({ ...form, customerName: e.target.value })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Téléphone
               </label>
               <input
@@ -109,11 +113,11 @@ export function ReservationsPage() {
                 onChange={(e) =>
                   setForm({ ...form, customerPhone: e.target.value })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Couverts
               </label>
               <input
@@ -124,11 +128,11 @@ export function ReservationsPage() {
                 onChange={(e) =>
                   setForm({ ...form, partySize: Number(e.target.value) || 2 })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Date & heure
               </label>
               <input
@@ -138,15 +142,17 @@ export function ReservationsPage() {
                 onChange={(e) =>
                   setForm({ ...form, reservedAt: e.target.value })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">Table</label>
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+                Table
+              </label>
               <select
                 value={form.tableId}
                 onChange={(e) => setForm({ ...form, tableId: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
                 <option value="">À attribuer</option>
                 {tables.map((t) => (
@@ -158,17 +164,17 @@ export function ReservationsPage() {
             </div>
             <button
               type="submit"
-              className="py-2.5 px-4 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+              className="py-2.5 px-4 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
               Enregistrer
             </button>
           </form>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+              <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Client</th>
                   <th className="px-5 py-3 font-semibold">Date & heure</th>
@@ -182,24 +188,27 @@ export function ReservationsPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                 {reservations.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50">
+                  <tr
+                    key={r.id}
+                    className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                  >
                     <td className="px-5 py-3">
-                      <p className="font-semibold text-[#182333]">
+                      <p className="font-semibold text-[var(--rm-ink)]">
                         {r.customerName}
                       </p>
-                      <p className="text-xs text-[#64748B] font-mono">
+                      <p className="text-xs text-[var(--rm-ink-muted)] font-mono">
                         {r.customerPhone}
                       </p>
                     </td>
-                    <td className="px-5 py-3 text-xs tabular-nums">
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink)] tabular-nums">
                       {formatDateTimeFr(r.reservedAt)}
                     </td>
-                    <td className="px-5 py-3 text-right font-semibold tabular-nums">
+                    <td className="px-5 py-3 text-right font-semibold text-[var(--rm-ink)] tabular-nums">
                       {r.partySize}
                     </td>
-                    <td className="px-5 py-3 text-xs">
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink)]">
                       {r.tableLabel || 'Non assignée'}
                     </td>
                     <td className="px-5 py-3 text-xs font-semibold">

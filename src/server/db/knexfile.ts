@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Knex } from 'knex';
 
-export interface Sqlite3RawConnection {
-  run: (sql: string, cb: (err?: Error | null) => void) => void;
+export interface BetterSqlite3RawConnection {
+  pragma?: (sql: string) => unknown;
+  run?: (sql: string, cb: (err?: Error | null) => void) => void;
 }
 
 const defaultDbPath =
@@ -33,34 +34,24 @@ function createSqlitePoolConfig(filename: string): Knex.PoolConfig {
     idleTimeoutMillis: 30_000,
     reapIntervalMillis: 1_000,
     afterCreate: (
-      conn: Sqlite3RawConnection,
+      conn: BetterSqlite3RawConnection,
       done: (err: Error | null, conn: unknown) => void,
     ) => {
-      conn.run('PRAGMA foreign_keys = ON;', (fkErr) => {
-        if (fkErr) {
-          done(fkErr, conn);
+      try {
+        if (typeof conn.pragma === 'function') {
+          conn.pragma('foreign_keys = ON');
+          conn.pragma('busy_timeout = 5000');
+          if (!isMemory) {
+            conn.pragma('journal_mode = WAL');
+            conn.pragma('synchronous = NORMAL');
+          }
+          done(null, conn);
           return;
         }
-        conn.run('PRAGMA busy_timeout = 5000;', (busyErr) => {
-          if (busyErr) {
-            done(busyErr, conn);
-            return;
-          }
-          if (isMemory) {
-            done(null, conn);
-            return;
-          }
-          conn.run('PRAGMA journal_mode = WAL;', (walErr) => {
-            if (walErr) {
-              done(walErr, conn);
-              return;
-            }
-            conn.run('PRAGMA synchronous = NORMAL;', (syncErr) => {
-              done(syncErr ?? null, conn);
-            });
-          });
-        });
-      });
+        done(null, conn);
+      } catch (err) {
+        done(err instanceof Error ? err : new Error(String(err)), conn);
+      }
     },
   };
 }
@@ -69,7 +60,7 @@ export function buildKnexConfig(dbPath: string = defaultDbPath): Knex.Config {
   ensureParentDir(dbPath);
 
   return {
-    client: 'sqlite3',
+    client: 'better-sqlite3',
     connection: {
       filename: dbPath,
     },

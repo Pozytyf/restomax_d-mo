@@ -1,15 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import {
   formatFcfa,
   formatTimeFr,
-  ORDER_STATUS_LABELS,
+  getOrderStatusLabel,
 } from '../../utils/format';
 import type { Order } from '../../types';
 
+const FILTER_IDS = [
+  'ALL',
+  'PENDING',
+  'IN_PREPARATION',
+  'READY',
+  'PAID',
+  'QR_TABLE',
+  'TAKEAWAY',
+] as const;
+
 export function OrdersPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<string>('ALL');
@@ -31,12 +43,12 @@ export function OrdersPage() {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
-      notify('Statut mis à jour.', 'success');
+      notify(t('orders.statusUpdated'), 'success');
       setSelected(null);
       load();
     } catch (err) {
       notify(
-        err instanceof Error ? err.message : 'Erreur mise à jour.',
+        err instanceof Error ? err.message : t('orders.statusUpdateError'),
         'error',
       );
     }
@@ -51,68 +63,79 @@ export function OrdersPage() {
   });
 
   return (
-    <RestaurantLayout title="Commandes" onRealtimeEvent={load}>
+    <RestaurantLayout title={t('orders.title')} onRealtimeEvent={load}>
       <div className="space-y-5">
         <div className="flex flex-wrap gap-2">
-          {[
-            { id: 'ALL', label: 'Toutes' },
-            { id: 'PENDING', label: 'En attente' },
-            { id: 'IN_PREPARATION', label: 'En préparation' },
-            { id: 'READY', label: 'Prêtes' },
-            { id: 'PAID', label: 'Encaissées' },
-            { id: 'QR_TABLE', label: 'Via QR Code' },
-            { id: 'TAKEAWAY', label: 'À emporter' },
-          ].map((tab) => (
+          {FILTER_IDS.map((tabId) => (
             <button
-              key={tab.id}
+              key={tabId}
               type="button"
-              onClick={() => setFilter(tab.id)}
+              onClick={() => setFilter(tabId)}
               className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                filter === tab.id
-                  ? 'bg-[#182333] text-white'
-                  : 'bg-white border border-slate-200 text-[#64748B] hover:text-[#182333]'
+                filter === tabId
+                  ? 'bg-[#182333] dark:bg-[#FF8738] text-white'
+                  : 'bg-[var(--rm-surface)] border border-[var(--rm-border)] text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)]'
               }`}
             >
-              {tab.label}
+              {t(`orders.filters.${tabId}`)}
             </button>
           ))}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+              <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">N°</th>
-                  <th className="px-5 py-3 font-semibold">Client / Table</th>
-                  <th className="px-5 py-3 font-semibold">Canal</th>
-                  <th className="px-5 py-3 font-semibold">Articles</th>
-                  <th className="px-5 py-3 font-semibold">Statut</th>
-                  <th className="px-5 py-3 font-semibold text-right">Total</th>
-                  <th className="px-5 py-3 font-semibold text-right">Payé</th>
-                  <th className="px-5 py-3 font-semibold text-right">Action</th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('dashboard.orderNoCol')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('dashboard.customerTableCol')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('common.channel')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('orders.itemsCol')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('common.status')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('common.total')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('common.paid')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('common.action')}
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                 {visible.map((ord) => (
-                  <tr key={ord.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-mono font-bold text-[#182333]">
+                  <tr
+                    key={ord.id}
+                    className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                  >
+                    <td className="px-5 py-3 font-mono font-bold text-[var(--rm-ink)]">
                       {ord.orderNumber}
-                      <div className="text-[11px] font-normal text-[#64748B]">
+                      <div className="text-[11px] font-normal text-[var(--rm-ink-muted)]">
                         {formatTimeFr(ord.createdAt)}
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-[#182333]">
+                    <td className="px-5 py-3 text-[var(--rm-ink)]">
                       {ord.tableLabel || ord.customerName}
                     </td>
-                    <td className="px-5 py-3 text-xs text-[#64748B]">
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink-muted)]">
                       {ord.orderType === 'QR_TABLE'
-                        ? 'QR Table'
+                        ? t('common.qrTable')
                         : ord.orderType === 'TAKEAWAY'
-                          ? 'À emporter'
-                          : 'Sur place'}
+                          ? t('common.takeaway')
+                          : t('common.dineIn')}
                     </td>
-                    <td className="px-5 py-3 text-xs text-[#64748B]">
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink-muted)]">
                       {ord.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}
                     </td>
                     <td className="px-5 py-3 text-xs font-semibold">
@@ -125,13 +148,13 @@ export function OrdersPage() {
                               : 'text-[#FF8738]'
                         }
                       >
-                        {ORDER_STATUS_LABELS[ord.status] || ord.status}
+                        {getOrderStatusLabel(ord.status)}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right font-semibold tabular-nums">
+                    <td className="px-5 py-3 text-right font-semibold text-[var(--rm-ink)] tabular-nums">
                       {formatFcfa(ord.totalXof)}
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-[#64748B]">
+                    <td className="px-5 py-3 text-right tabular-nums text-[var(--rm-ink-muted)]">
                       {formatFcfa(ord.paidXof)}
                     </td>
                     <td className="px-5 py-3 text-right">
@@ -140,7 +163,7 @@ export function OrdersPage() {
                         onClick={() => setSelected(ord)}
                         className="text-xs font-semibold text-[#FF8738] hover:underline cursor-pointer"
                       >
-                        Détails
+                        {t('common.details')}
                       </button>
                     </td>
                   </tr>
@@ -152,27 +175,27 @@ export function OrdersPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-50 bg-[#182333]/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-[#0B1220]/70 flex items-center justify-center p-4">
+          <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] max-w-md w-full p-6 space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-bold text-[#182333] font-mono">
+                <h3 className="text-lg font-bold text-[var(--rm-ink)] font-mono">
                   {selected.orderNumber}
                 </h3>
-                <p className="text-xs text-[#64748B]">
+                <p className="text-xs text-[var(--rm-ink-muted)]">
                   {selected.tableLabel || selected.customerName}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="text-xs text-[#64748B] hover:text-[#182333] cursor-pointer"
+                className="text-xs text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)] cursor-pointer"
               >
-                Fermer
+                {t('common.close')}
               </button>
             </div>
 
-            <div className="border-t border-b border-slate-100 py-3 space-y-2 text-xs">
+            <div className="border-t border-b border-[var(--rm-border-subtle)] py-3 space-y-2 text-xs text-[var(--rm-ink)]">
               {selected.items.map((it) => (
                 <div key={it.id} className="flex justify-between">
                   <span>
@@ -185,8 +208,8 @@ export function OrdersPage() {
               ))}
             </div>
 
-            <div className="flex justify-between text-sm font-bold text-[#182333]">
-              <span>Total TTC</span>
+            <div className="flex justify-between text-sm font-bold text-[var(--rm-ink)]">
+              <span>{t('common.totalTtc')}</span>
               <span className="tabular-nums">{formatFcfa(selected.totalXof)}</span>
             </div>
 
@@ -195,16 +218,16 @@ export function OrdersPage() {
                 <button
                   type="button"
                   onClick={() => changeStatus(selected.id, 'SERVED')}
-                  className="flex-1 py-2 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+                  className="flex-1 py-2 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] text-white text-xs font-semibold cursor-pointer"
                 >
-                  Marquer Servie
+                  {t('orders.markServed')}
                 </button>
                 <button
                   type="button"
                   onClick={() => changeStatus(selected.id, 'CANCELLED')}
-                  className="py-2 px-4 rounded-lg border border-red-200 text-[#E05252] text-xs font-semibold cursor-pointer"
+                  className="py-2 px-4 rounded-lg border border-red-200 dark:border-red-900/60 text-[#E05252] text-xs font-semibold cursor-pointer"
                 >
-                  Annuler
+                  {t('common.cancel')}
                 </button>
               </div>
             )}

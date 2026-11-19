@@ -216,6 +216,29 @@ export interface StockItem {
   updatedAt: string;
 }
 
+export interface StockAlertSettings {
+  restaurantId: string;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  recipientEmails: string;
+  resolvedRecipients: string[];
+  updatedAt: string;
+}
+
+export interface RestaurantNotification {
+  id: string;
+  restaurantId: string;
+  type: string;
+  title: string;
+  message: string;
+  stockId: string | null;
+  emailDispatched: boolean;
+  emailRecipients: string;
+  emailStatus: 'SENT' | 'QUEUED_NO_SMTP' | 'SKIPPED' | 'FAILED';
+  isRead: boolean;
+  createdAt: string;
+}
+
 export interface StaffMember {
   id: string;
   userId: string;

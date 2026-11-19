@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { ResilientImage } from '../../components/ResilientImage';
@@ -8,6 +9,7 @@ import { formatFcfa } from '../../utils/format';
 import type { MenuCategory, MenuItem } from '../../types';
 
 export function MenuCatalogPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -97,23 +99,23 @@ export function MenuCatalogPage() {
 
   return (
     <RestaurantLayout
-      title="Menu & Catalogue"
+      title={t('pages.menuTitle')}
       actions={
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setShowCatForm((v) => !v)}
-            className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-[#182333] cursor-pointer"
+            className="px-3 py-2 rounded-lg border border-[var(--rm-border)] bg-[var(--rm-surface)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold text-[var(--rm-ink)] cursor-pointer transition-colors"
           >
-            + Catégorie
+            {t('pages.newCategory')}
           </button>
           <button
             type="button"
             onClick={() => setShowItemForm((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Nouvel article</span>
+            <span>{t('pages.newItem')}</span>
           </button>
         </div>
       }
@@ -122,10 +124,10 @@ export function MenuCatalogPage() {
         {showCatForm && (
           <form
             onSubmit={handleCreateCat}
-            className="bg-white rounded-xl border border-slate-200 p-5 flex flex-wrap gap-4 items-end"
+            className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 flex flex-wrap gap-4 items-end"
           >
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Nom de la catégorie
               </label>
               <input
@@ -133,11 +135,11 @@ export function MenuCatalogPage() {
                 type="text"
                 value={catForm.name}
                 onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Poste KDS
               </label>
               <select
@@ -145,7 +147,7 @@ export function MenuCatalogPage() {
                 onChange={(e) =>
                   setCatForm({ ...catForm, station: e.target.value })
                 }
-                className="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                className="px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
                 <option value="KITCHEN">Cuisine</option>
                 <option value="BAR">Bar</option>
@@ -153,7 +155,7 @@ export function MenuCatalogPage() {
             </div>
             <button
               type="submit"
-              className="px-4 py-2.5 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2.5 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
               Enregistrer
             </button>
@@ -163,10 +165,10 @@ export function MenuCatalogPage() {
         {showItemForm && (
           <form
             onSubmit={handleCreateItem}
-            className="bg-white rounded-xl border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end"
+            className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end"
           >
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Catégorie
               </label>
               <select
@@ -174,7 +176,7 @@ export function MenuCatalogPage() {
                 onChange={(e) =>
                   setItemForm({ ...itemForm, categoryId: e.target.value })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -184,7 +186,7 @@ export function MenuCatalogPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Nom du plat / boisson
               </label>
               <input
@@ -194,11 +196,11 @@ export function MenuCatalogPage() {
                 onChange={(e) =>
                   setItemForm({ ...itemForm, name: e.target.value })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Prix vente (FCFA)
               </label>
               <input
@@ -212,11 +214,11 @@ export function MenuCatalogPage() {
                     priceXof: Number(e.target.value) || 0,
                   })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Coût matière (FCFA)
               </label>
               <input
@@ -229,12 +231,12 @@ export function MenuCatalogPage() {
                     costPriceXof: Number(e.target.value) || 0,
                   })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm tabular-nums"
               />
             </div>
             <button
               type="submit"
-              className="py-2.5 px-4 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
+              className="py-2.5 px-4 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
             >
               Ajouter au menu
             </button>
@@ -245,7 +247,7 @@ export function MenuCatalogPage() {
           {items.map((item) => (
             <div
               key={item.id}
-              className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col justify-between"
+              className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden flex flex-col justify-between"
             >
               <div>
                 <div className="h-40 w-full overflow-hidden bg-[#182333]">
@@ -257,7 +259,7 @@ export function MenuCatalogPage() {
                   />
                 </div>
                 <div className="p-5">
-                  <div className="flex items-center justify-between text-xs text-[#64748B]">
+                  <div className="flex items-center justify-between text-xs text-[var(--rm-ink-muted)]">
                     <span>
                       {item.categoryName} ·{' '}
                       {item.station === 'BAR' ? 'Bar' : 'Cuisine'}
@@ -270,25 +272,25 @@ export function MenuCatalogPage() {
                       {item.available ? 'Disponible' : 'Indisponible'}
                     </span>
                   </div>
-                  <h3 className="mt-1.5 text-base font-bold text-[#182333]">
+                  <h3 className="mt-1.5 text-base font-bold text-[var(--rm-ink)]">
                     {item.name}
                   </h3>
-                  <p className="mt-1 text-xs text-[#64748B] line-clamp-2">
+                  <p className="mt-1 text-xs text-[var(--rm-ink-muted)] line-clamp-2">
                     {item.description || 'Aucune description.'}
                   </p>
                 </div>
               </div>
 
-              <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-between">
-                <span className="font-extrabold text-[#182333] text-sm tabular-nums">
+              <div className="px-5 py-3.5 border-t border-[var(--rm-border-subtle)] flex items-center justify-between">
+                <span className="font-extrabold text-[var(--rm-ink)] text-sm tabular-nums">
                   {formatFcfa(item.priceXof)}
                 </span>
                 <button
                   type="button"
                   onClick={() => toggleAvailable(item)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                     item.available
-                      ? 'border border-slate-200 text-[#64748B] hover:text-[#E05252]'
+                      ? 'border border-[var(--rm-border)] text-[var(--rm-ink-muted)] hover:text-[#E05252]'
                       : 'bg-[#14B8A6] text-white'
                   }`}
                 >

@@ -118,8 +118,17 @@ export class PublicService extends BaseService<PublicRepository> {
   }
 
   async generateQrSvg(token: string, baseUrl: string): Promise<string> {
+    const qrRow = publicRepository.findQrContextByToken(token);
+    if (!qrRow) {
+      throw new AppError(404, 'QR code introuvable ou invalide.');
+    }
+    if (qrRow.qr_status !== 'ACTIVE') {
+      throw new AppError(410, 'Ce QR code a été révoqué.');
+    }
+
     try {
-      const targetUrl = `${baseUrl}/q/${encodeURIComponent(token)}`;
+      const cleanBase = baseUrl.replace(/\/+$/, '');
+      const targetUrl = `${cleanBase}/q/${encodeURIComponent(token)}`;
       return await QRCode.toString(targetUrl, {
         type: 'svg',
         margin: 2,
@@ -171,6 +180,7 @@ export class PublicService extends BaseService<PublicRepository> {
       description: it.description,
       priceXof: Number(it.price_xof),
       imageUrl: it.image_url,
+      station: it.station || 'KITCHEN',
       options: JSON.parse(String(it.options_json || '[]')),
     }));
 
@@ -279,16 +289,17 @@ export class PublicService extends BaseService<PublicRepository> {
           optionIds?: unknown;
           notes?: unknown;
         };
-        const qty = Math.max(
-          1,
-          Math.min(50, Math.floor(Number(line.quantity) || 1)),
-        );
+        const parsedQty = Number(line.quantity ?? 1);
+        if (!Number.isFinite(parsedQty) || parsedQty < 1) {
+          throw new AppError(400, 'Quantité d’article invalide.');
+        }
+        const qty = Math.max(1, Math.min(50, Math.floor(parsedQty)));
         const menuItem = publicRepository.findMenuItemWithStation(
           String(line.menuItemId),
           restaurantId,
         );
 
-        if (!menuItem || !menuItem.available) {
+        if (!menuItem || !menuItem.available || !menuItem.category_active) {
           throw new AppError(
             400,
             'Un ou plusieurs articles sélectionnés ne sont plus disponibles.',
@@ -397,6 +408,8 @@ export class PublicService extends BaseService<PublicRepository> {
       status: order.status,
       totalXof: Number(order.total_xof),
       paidXof: Number(order.paid_xof),
+      customerName: String(order.customer_name || ''),
+      notes: String(order.notes || ''),
       tableLabel: order.table_label,
       restaurantName: order.restaurant_name,
       createdAt: order.created_at,

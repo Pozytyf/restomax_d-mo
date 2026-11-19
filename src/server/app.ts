@@ -7,6 +7,7 @@ import { superAdminRouter } from './routes/superadmin.ts';
 
 export function createExpressApp() {
   const app = express();
+  app.set('trust proxy', 1);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());

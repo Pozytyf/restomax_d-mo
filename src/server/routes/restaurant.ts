@@ -95,7 +95,7 @@ restaurantRouter.post(
   restaurantController.regenerateTableQr,
 );
 
-// 6. STOCKS & MOVEMENTS
+// 6. STOCKS, MOVEMENTS & AUTOMATED ALERTS
 restaurantRouter.get(
   '/stocks',
   requirePermission('stocks:read'),
@@ -110,6 +110,31 @@ restaurantRouter.post(
   '/stocks/:id/move',
   requirePermission('stocks:write'),
   restaurantController.moveStock,
+);
+restaurantRouter.get(
+  '/stocks/alerts/config',
+  requirePermission('stocks:read'),
+  restaurantController.getStockAlertConfig,
+);
+restaurantRouter.patch(
+  '/stocks/alerts/config',
+  requirePermission('stocks:write'),
+  restaurantController.updateStockAlertConfig,
+);
+restaurantRouter.post(
+  '/stocks/:id/alert-test',
+  requirePermission('stocks:write'),
+  restaurantController.triggerManualStockAlert,
+);
+
+// IN-APP NOTIFICATIONS
+restaurantRouter.get(
+  '/notifications',
+  restaurantController.getNotifications,
+);
+restaurantRouter.patch(
+  '/notifications/read',
+  restaurantController.markNotificationsRead,
 );
 
 // 7. STAFF & GRANULAR PERMISSIONS

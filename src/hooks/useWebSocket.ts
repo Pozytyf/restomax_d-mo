@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface WsEventMessage {
   type: string;
@@ -12,9 +12,13 @@ export function useWebSocketRoom(
 ) {
   const callbackRef = useRef(onEvent);
   callbackRef.current = onEvent;
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    if (!room) return;
+    if (!room) {
+      setConnected(false);
+      return;
+    }
     let active = true;
     let ws: WebSocket | null = null;
     let retryTimer: number | undefined;
@@ -24,6 +28,10 @@ export function useWebSocketRoom(
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const url = `${protocol}//${window.location.host}/ws?room=${encodeURIComponent(room)}`;
       ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        if (active) setConnected(true);
+      };
 
       ws.onmessage = (event) => {
         try {
@@ -36,6 +44,7 @@ export function useWebSocketRoom(
 
       ws.onclose = () => {
         if (active) {
+          setConnected(false);
           retryTimer = window.setTimeout(connect, 3000);
         }
       };
@@ -45,8 +54,11 @@ export function useWebSocketRoom(
 
     return () => {
       active = false;
+      setConnected(false);
       if (retryTimer) window.clearTimeout(retryTimer);
       if (ws) ws.close();
     };
   }, [room]);
+
+  return { connected };
 }

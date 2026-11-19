@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
@@ -7,6 +8,7 @@ import { formatDateFr } from '../../utils/format';
 import type { Restaurant } from '../../types';
 
 export function RestaurantsAdminPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -72,7 +74,7 @@ export function RestaurantsAdminPage() {
 
   return (
     <SuperAdminLayout
-      title="Restaurants clients"
+      title={t('superadmin.restaurantsTitle')}
       onRealtimeEvent={load}
       actions={
         <button
@@ -81,7 +83,7 @@ export function RestaurantsAdminPage() {
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>Créer un restaurant</span>
+          <span>{t('superadmin.createRestaurantBtn')}</span>
         </button>
       }
     >

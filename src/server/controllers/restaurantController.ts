@@ -183,10 +183,10 @@ export const restaurantController = {
     }
   },
 
-  createStockItem(req: Request, res: Response) {
+  async createStockItem(req: Request, res: Response) {
     try {
-      const id = restaurantService.createStockItem(
-        req.auth!.restaurantId!,
+      const id = await restaurantService.createStockItem(
+        req.auth!,
         req.body || {},
       );
       res.status(201).json({ id });
@@ -195,16 +195,80 @@ export const restaurantController = {
     }
   },
 
-  moveStock(req: Request, res: Response) {
+  async moveStock(req: Request, res: Response) {
     try {
-      const quantity = restaurantService.moveStock(
+      const result = await restaurantService.moveStock(
         req.auth!,
         String(req.params.id),
         req.body || {},
       );
-      res.json({ quantity });
+      res.json(result);
     } catch (err) {
       handleControllerError(res, err, 'Erreur mouvement stock.');
+    }
+  },
+
+  getStockAlertConfig(req: Request, res: Response) {
+    try {
+      const data = restaurantService.getStockAlertConfig(
+        req.auth!.restaurantId!,
+      );
+      res.json(data);
+    } catch (err) {
+      handleControllerError(
+        res,
+        err,
+        'Erreur chargement configuration alertes stock.',
+      );
+    }
+  },
+
+  updateStockAlertConfig(req: Request, res: Response) {
+    try {
+      const settings = restaurantService.updateStockAlertConfig(
+        req.auth!,
+        req.body || {},
+      );
+      res.json({ settings });
+    } catch (err) {
+      handleControllerError(
+        res,
+        err,
+        'Erreur mise à jour configuration alertes stock.',
+      );
+    }
+  },
+
+  async triggerManualStockAlert(req: Request, res: Response) {
+    try {
+      const result = await restaurantService.triggerManualStockAlert(
+        req.auth!,
+        String(req.params.id),
+      );
+      res.json(result);
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur envoi alerte stock.');
+    }
+  },
+
+  getNotifications(req: Request, res: Response) {
+    try {
+      const data = restaurantService.getNotifications(req.auth!.restaurantId!);
+      res.json(data);
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur chargement notifications.');
+    }
+  },
+
+  markNotificationsRead(req: Request, res: Response) {
+    try {
+      restaurantService.markNotificationsRead(
+        req.auth!.restaurantId!,
+        req.body || {},
+      );
+      res.json({ ok: true });
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur mise à jour notifications.');
     }
   },
 

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
-import { formatTimeFr, ORDER_STATUS_LABELS } from '../../utils/format';
+import { formatTimeFr, getOrderStatusLabel } from '../../utils/format';
 import type { Order } from '../../types';
 
 export function KitchenKdsPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [stationFilter, setStationFilter] = useState<'ALL' | 'KITCHEN' | 'BAR'>(
@@ -35,11 +37,14 @@ export function KitchenKdsPage() {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
-      notify(`Statut mis à jour : ${ORDER_STATUS_LABELS[status]}`, 'success');
+      notify(
+        t('kitchen.statusUpdated', { status: getOrderStatusLabel(status) }),
+        'success',
+      );
       load();
     } catch (err) {
       notify(
-        err instanceof Error ? err.message : 'Erreur mise à jour KDS.',
+        err instanceof Error ? err.message : t('kitchen.updateError'),
         'error',
       );
     }
@@ -47,30 +52,34 @@ export function KitchenKdsPage() {
 
   return (
     <RestaurantLayout
-      title="Cuisine & Bar (KDS Temps Réel)"
+      title={t('kitchen.title')}
       onRealtimeEvent={load}
       actions={
-        <div className="inline-flex p-1 rounded-lg bg-[#F5F7FA] border border-slate-200">
+        <div className="inline-flex p-1 rounded-lg bg-[var(--rm-surface-muted)] border border-[var(--rm-border)]">
           {(['ALL', 'KITCHEN', 'BAR'] as const).map((st) => (
             <button
               key={st}
               type="button"
               onClick={() => setStationFilter(st)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors ${
                 stationFilter === st
-                  ? 'bg-[#182333] text-white'
-                  : 'text-[#64748B]'
+                  ? 'bg-[#182333] dark:bg-[#FF8738] text-white'
+                  : 'text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)]'
               }`}
             >
-              {st === 'ALL' ? 'Tous' : st === 'KITCHEN' ? 'Cuisine' : 'Bar'}
+              {st === 'ALL'
+                ? t('common.all')
+                : st === 'KITCHEN'
+                  ? t('common.kitchen')
+                  : t('common.bar')}
             </button>
           ))}
         </div>
       }
     >
       {orders.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-sm text-[#64748B]">
-          Aucune commande en attente de préparation actuellement.
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-12 text-center text-sm text-[var(--rm-ink-muted)]">
+          {t('kitchen.noPendingOrders')}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -92,23 +101,25 @@ export function KitchenKdsPage() {
             return (
               <div
                 key={ord.id}
-                className={`bg-white rounded-xl border p-5 flex flex-col justify-between ${
-                  urgent ? 'border-[#E05252]' : 'border-slate-200'
+                className={`bg-[var(--rm-surface)] rounded-xl border p-5 flex flex-col justify-between ${
+                  urgent
+                    ? 'border-[#E05252]'
+                    : 'border-[var(--rm-border)]'
                 }`}
               >
                 <div>
-                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-[var(--rm-border-subtle)]">
                     <div>
-                      <p className="font-mono text-sm font-extrabold text-[#182333]">
+                      <p className="font-mono text-sm font-extrabold text-[var(--rm-ink)]">
                         {ord.orderNumber}
                       </p>
-                      <p className="text-xs text-[#64748B] mt-0.5">
+                      <p className="text-xs text-[var(--rm-ink-muted)] mt-0.5">
                         {ord.tableLabel || ord.customerName} ·{' '}
                         {ord.orderType === 'QR_TABLE'
-                          ? 'Client QR'
+                          ? t('kitchen.qrGuest')
                           : ord.orderType === 'TAKEAWAY'
-                            ? 'À emporter'
-                            : 'Salle'}
+                            ? t('common.takeaway')
+                            : t('kitchen.roomGuest')}
                       </p>
                     </div>
                     <div className="text-right">
@@ -120,7 +131,7 @@ export function KitchenKdsPage() {
                         <Clock className="w-3.5 h-3.5" />
                         {elapsedMins} min
                       </span>
-                      <p className="text-[11px] text-[#64748B]">
+                      <p className="text-[11px] text-[var(--rm-ink-muted)]">
                         {formatTimeFr(ord.createdAt)}
                       </p>
                     </div>
@@ -133,40 +144,42 @@ export function KitchenKdsPage() {
                         className="flex items-start justify-between gap-2 text-sm"
                       >
                         <div>
-                          <span className="font-bold text-[#182333] tabular-nums mr-2">
+                          <span className="font-bold text-[var(--rm-ink)] tabular-nums mr-2">
                             {line.quantity}×
                           </span>
-                          <span className="font-medium text-[#182333]">
+                          <span className="font-medium text-[var(--rm-ink)]">
                             {line.name}
                           </span>
                           {line.optionsSummary && (
-                            <p className="text-xs text-[#64748B] ml-6">
+                            <p className="text-xs text-[var(--rm-ink-muted)] ml-6">
                               {line.optionsSummary}
                             </p>
                           )}
                         </div>
-                        <span className="text-[11px] font-semibold text-[#64748B] shrink-0">
-                          {line.station === 'BAR' ? 'Bar' : 'Cuisine'}
+                        <span className="text-[11px] font-semibold text-[var(--rm-ink-muted)] shrink-0">
+                          {line.station === 'BAR'
+                            ? t('common.bar')
+                            : t('common.kitchen')}
                         </span>
                       </li>
                     ))}
                   </ul>
 
                   {ord.notes && (
-                    <p className="mt-3 p-2.5 rounded-lg bg-amber-50 text-xs text-amber-900">
-                      Note : {ord.notes}
+                    <p className="mt-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-xs text-amber-900 dark:text-amber-200 border border-amber-200/60 dark:border-amber-800/50">
+                      {t('common.note')} : {ord.notes}
                     </p>
                   )}
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-slate-100 flex gap-2">
+                <div className="mt-5 pt-4 border-t border-[var(--rm-border-subtle)] flex gap-2">
                   {ord.status === 'PENDING' && (
                     <button
                       type="button"
                       onClick={() => updateStatus(ord.id, 'IN_PREPARATION')}
                       className="flex-1 py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
                     >
-                      Démarrer préparation
+                      {t('kitchen.startPrep')}
                     </button>
                   )}
                   {ord.status === 'IN_PREPARATION' && (
@@ -175,16 +188,16 @@ export function KitchenKdsPage() {
                       onClick={() => updateStatus(ord.id, 'READY')}
                       className="flex-1 py-2.5 rounded-lg bg-[#14B8A6] hover:opacity-90 text-white text-xs font-semibold cursor-pointer"
                     >
-                      Marquer Prête
+                      {t('kitchen.markReady')}
                     </button>
                   )}
                   {ord.status === 'READY' && (
                     <button
                       type="button"
                       onClick={() => updateStatus(ord.id, 'SERVED')}
-                      className="flex-1 py-2.5 rounded-lg bg-[#182333] hover:bg-[#223044] text-white text-xs font-semibold cursor-pointer"
+                      className="flex-1 py-2.5 rounded-lg bg-[#182333] hover:bg-[#223044] dark:bg-[#223044] dark:hover:bg-[#2D4059] text-white text-xs font-semibold cursor-pointer"
                     >
-                      Remise / Servie
+                      {t('kitchen.servedBtn')}
                     </button>
                   )}
                 </div>

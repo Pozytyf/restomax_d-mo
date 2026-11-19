@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { formatDateTimeFr } from '../../utils/format';
 import type { AuditLog } from '../../types';
 
 export function AuditLogPage() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
   useEffect(() => {
@@ -14,7 +16,7 @@ export function AuditLogPage() {
   }, []);
 
   return (
-    <SuperAdminLayout title="Journal d’audit & sécurité">
+    <SuperAdminLayout title={t('superadmin.auditTitle')}>
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

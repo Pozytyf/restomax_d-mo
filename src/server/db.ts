@@ -314,6 +314,28 @@ function runMigrations(db: SqliteDatabase): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS stock_alert_settings (
+      restaurant_id TEXT PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
+      in_app_enabled INTEGER NOT NULL DEFAULT 1,
+      email_enabled INTEGER NOT NULL DEFAULT 1,
+      recipient_emails TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      stock_id TEXT REFERENCES stocks(id) ON DELETE SET NULL,
+      email_dispatched INTEGER NOT NULL DEFAULT 0,
+      email_recipients TEXT NOT NULL DEFAULT '',
+      email_status TEXT NOT NULL DEFAULT 'SKIPPED',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS customers (
       id TEXT PRIMARY KEY,
       restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,

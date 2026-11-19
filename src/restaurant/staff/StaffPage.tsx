@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Shield } from 'lucide-react';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { apiFetch } from '../../services/api';
@@ -7,6 +8,7 @@ import { ROLE_LABELS } from '../../utils/format';
 import type { Permission, Role, StaffMember } from '../../types';
 
 export function StaffPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [ceilings, setCeilings] = useState<Record<string, Permission[]>>({});
@@ -89,7 +91,7 @@ export function StaffPage() {
 
   return (
     <RestaurantLayout
-      title="Personnel & Permissions"
+      title={t('pages.staffTitle')}
       actions={
         <button
           type="button"
@@ -97,7 +99,7 @@ export function StaffPage() {
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>Ajouter un employé</span>
+          <span>{t('pages.addEmployeeBtn')}</span>
         </button>
       }
     >
@@ -105,10 +107,10 @@ export function StaffPage() {
         {showAdd && (
           <form
             onSubmit={handleCreate}
-            className="bg-white rounded-xl border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end"
+            className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end"
           >
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Nom complet
               </label>
               <input
@@ -116,27 +118,31 @@ export function StaffPage() {
                 type="text"
                 value={form.fullName}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">Email</label>
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+                Email
+              </label>
               <input
                 required
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">Rôle</label>
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+                Rôle
+              </label>
               <select
                 value={form.role}
                 onChange={(e) =>
                   setForm({ ...form, role: e.target.value as Role })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
                 <option value="MANAGER">Manager</option>
                 <option value="CASHIER">Caissier</option>
@@ -145,7 +151,7 @@ export function StaffPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">
+              <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                 Mot de passe initial
               </label>
               <input
@@ -154,22 +160,22 @@ export function StaffPage() {
                 placeholder="RestoMax2026!"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-sm"
               />
             </div>
             <button
               type="submit"
-              className="py-2.5 px-4 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+              className="py-2.5 px-4 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
               Créer le compte
             </button>
           </form>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+              <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Employé</th>
                   <th className="px-5 py-3 font-semibold">Email</th>
@@ -180,16 +186,19 @@ export function StaffPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                 {staff.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-semibold text-[#182333]">
+                  <tr
+                    key={m.id}
+                    className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                  >
+                    <td className="px-5 py-3 font-semibold text-[var(--rm-ink)]">
                       {m.fullName}
                     </td>
-                    <td className="px-5 py-3 text-xs font-mono text-[#64748B]">
+                    <td className="px-5 py-3 text-xs font-mono text-[var(--rm-ink-muted)]">
                       {m.email}
                     </td>
-                    <td className="px-5 py-3 text-xs font-semibold text-[#182333]">
+                    <td className="px-5 py-3 text-xs font-semibold text-[var(--rm-ink)]">
                       {ROLE_LABELS[m.role] || m.role}
                     </td>
                     <td className="px-5 py-3 text-xs font-semibold">
@@ -217,7 +226,7 @@ export function StaffPage() {
                                   : maxPerms,
                               );
                             }}
-                            className="text-xs font-semibold text-[#182333] hover:text-[#FF8738] cursor-pointer"
+                            className="text-xs font-semibold text-[var(--rm-ink)] hover:text-[#FF8738] cursor-pointer"
                           >
                             Permissions
                           </button>
@@ -240,22 +249,22 @@ export function StaffPage() {
       </div>
 
       {editingMember && (
-        <div className="fixed inset-0 z-50 bg-[#182333]/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-[#0B1220]/70 flex items-center justify-center p-4">
+          <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] max-w-md w-full p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-[#FF8738]" />
-              <h3 className="text-base font-bold text-[#182333]">
+              <h3 className="text-base font-bold text-[var(--rm-ink)]">
                 Droits délégués : {editingMember.fullName}
               </h3>
             </div>
-            <p className="text-xs text-[#64748B]">
+            <p className="text-xs text-[var(--rm-ink-muted)]">
               Plafond maximal du rôle {ROLE_LABELS[editingMember.role]} appliqué automatiquement côté serveur.
             </p>
-            <div className="max-h-64 overflow-y-auto space-y-2 border-t border-b border-slate-100 py-3">
+            <div className="max-h-64 overflow-y-auto space-y-2 border-t border-b border-[var(--rm-border-subtle)] py-3">
               {(ceilings[editingMember.role] || []).map((perm) => (
                 <label
                   key={perm}
-                  className="flex items-center gap-2.5 text-xs text-[#182333] cursor-pointer"
+                  className="flex items-center gap-2.5 text-xs text-[var(--rm-ink)] cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -276,14 +285,14 @@ export function StaffPage() {
               <button
                 type="button"
                 onClick={() => setEditingMember(null)}
-                className="flex-1 py-2 rounded-lg border border-slate-300 text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold cursor-pointer"
               >
                 Annuler
               </button>
               <button
                 type="button"
                 onClick={savePermissions}
-                className="flex-1 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
               >
                 Enregistrer
               </button>

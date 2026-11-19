@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import { ROLE_LABELS } from '../../utils/format';
 
 export function PlatformUsersPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [users, setUsers] = useState<
     Array<{
@@ -48,7 +50,7 @@ export function PlatformUsersPage() {
   };
 
   return (
-    <SuperAdminLayout title="Utilisateurs de la plateforme">
+    <SuperAdminLayout title={t('superadmin.usersTitle')}>
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">

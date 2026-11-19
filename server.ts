@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -8,9 +9,41 @@ import { getDb } from './src/server/db.ts';
 import { runKnexMigrations } from './src/server/knex.ts';
 import { setupWebSocketServer } from './src/server/ws.ts';
 
+function resolveCliArg(name: string): string | undefined {
+  const idx = process.argv.indexOf(name);
+  if (idx !== -1 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1];
+  }
+  const prefix = `${name}=`;
+  const eqArg = process.argv.find((arg) => arg.startsWith(prefix));
+  return eqArg ? eqArg.slice(prefix.length) : undefined;
+}
+
+function resolveListenPort(): number {
+  const cliPort = resolveCliArg('--port');
+  if (cliPort && Number.isFinite(Number(cliPort)) && Number(cliPort) > 0) {
+    return Number(cliPort);
+  }
+  const envPort = process.env.PORT ? Number(process.env.PORT) : undefined;
+  const nginxPort = process.env.NGINX_PORT
+    ? Number(process.env.NGINX_PORT)
+    : undefined;
+  const defaultAppPort = process.env.DEFAULT_APP_PORT
+    ? Number(process.env.DEFAULT_APP_PORT)
+    : 3000;
+
+  // In Cloud Run / AI Studio, PORT may be set to NGINX_PORT (8080) while the app must listen on DEFAULT_APP_PORT (3000).
+  if (envPort && nginxPort && envPort === nginxPort) {
+    return defaultAppPort;
+  }
+  return envPort || defaultAppPort || 3000;
+}
+
 async function startServer() {
-  const port = Number(process.env.PORT || 3000);
+  const port = resolveListenPort();
+  const host = resolveCliArg('--host') || process.env.HOST || '0.0.0.0';
   const isProd = process.env.NODE_ENV === 'production';
+  const disableHmr = process.env.DISABLE_HMR === 'true';
 
   // Initialize Knex SQLite3 pool, run initial schema migrations, and ensure seeded tables
   await runKnexMigrations();
@@ -24,7 +57,11 @@ async function startServer() {
 
   if (!isProd) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: !disableHmr,
+        ws: disableHmr ? (false as const) : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -41,8 +78,8 @@ async function startServer() {
     });
   }
 
-  httpServer.listen(port, '0.0.0.0', () => {
-    console.log(`Resto'MAX server listening on http://0.0.0.0:${port}`);
+  httpServer.listen(port, host, () => {
+    console.log(`Resto'MAX server listening on http://${host}:${port}`);
   });
 }
 

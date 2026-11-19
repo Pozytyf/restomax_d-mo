@@ -37,7 +37,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="pointer-events-auto flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3.5 shadow-lg text-sm text-[#182333]"
+            className="pointer-events-auto flex items-start gap-3 bg-[var(--rm-surface)] border border-[var(--rm-border)] rounded-xl p-3.5 shadow-lg text-sm text-[var(--rm-ink)]"
           >
             {t.type === 'success' && (
               <CheckCircle2 className="w-4 h-4 text-[#14B8A6] shrink-0 mt-0.5" />
@@ -54,7 +54,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               onClick={() =>
                 setToasts((prev) => prev.filter((item) => item.id !== t.id))
               }
-              className="text-[#64748B] hover:text-[#182333] p-0.5"
+              className="text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)] p-0.5 cursor-pointer"
               aria-label="Fermer"
             >
               <X className="w-4 h-4" />

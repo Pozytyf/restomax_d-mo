@@ -20,6 +20,31 @@ export function setStoredToken(token: string | null): void {
   }
 }
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+export function isConnectivityError(err: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return true;
+  }
+  if (err instanceof ApiError) {
+    return (
+      err.status === 0 ||
+      err.status === 502 ||
+      err.status === 503 ||
+      err.status === 504
+    );
+  }
+  return err instanceof TypeError;
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
@@ -48,7 +73,7 @@ export async function apiFetch<T>(
         errorMsg = errJson.error;
       }
     }
-    throw new Error(errorMsg);
+    throw new ApiError(errorMsg, response.status);
   }
 
   if (contentType.includes('application/json')) {

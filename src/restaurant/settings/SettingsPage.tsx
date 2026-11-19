@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -6,6 +7,7 @@ import { formatDateFr, formatFcfa } from '../../utils/format';
 import type { Restaurant } from '../../types';
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [resto, setResto] = useState<Restaurant | null>(null);
   const [sub, setSub] = useState<{
@@ -94,40 +96,42 @@ export function SettingsPage() {
   };
 
   return (
-    <RestaurantLayout title="Paramètres & Abonnement">
+    <RestaurantLayout title={t('pages.settingsTitle')}>
       {resto && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <form
             onSubmit={saveSettings}
-            className="lg:col-span-7 bg-white rounded-xl border border-slate-200 p-6 space-y-5"
+            className="lg:col-span-7 bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6 space-y-5"
           >
-            <h2 className="text-base font-bold text-[#182333]">
+            <h2 className="text-base font-bold text-[var(--rm-ink)]">
               Profil de l’établissement & fiscalité
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold mb-1">Nom</label>
+                <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+                  Nom
+                </label>
                 <input
                   type="text"
                   value={resto.name}
                   onChange={(e) => setResto({ ...resto, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1">
+                <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                   Téléphone
                 </label>
                 <input
                   type="text"
                   value={resto.phone}
                   onChange={(e) => setResto({ ...resto, phone: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1">
+                <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                   Horaires
                 </label>
                 <input
@@ -136,11 +140,11 @@ export function SettingsPage() {
                   onChange={(e) =>
                     setResto({ ...resto, openingHours: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1">
+                <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
                   Taux TVA (%)
                 </label>
                 <input
@@ -153,18 +157,18 @@ export function SettingsPage() {
                       taxRatePercent: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm tabular-nums"
                 />
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="pt-4 border-t border-[var(--rm-border)] space-y-3">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-sm font-bold text-[#182333]">
+                  <h3 className="text-sm font-bold text-[var(--rm-ink)]">
                     Compte marchand PayDunya (Encaissements directs)
                   </h3>
-                  <p className="text-xs text-[#64748B]">
+                  <p className="text-xs text-[var(--rm-ink-muted)]">
                     Les fonds clients sont réglés directement sur votre compte marchand. Les clés restent chiffrées côté serveur.
                   </p>
                 </div>
@@ -176,7 +180,7 @@ export function SettingsPage() {
                       paydunyaMode: e.target.value as 'TEST' | 'LIVE',
                     })
                   }
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white"
+                  className="px-3 py-1.5 rounded-lg border border-[var(--rm-border-input)] text-xs font-semibold bg-[var(--rm-surface)] text-[var(--rm-ink)]"
                 >
                   <option value="TEST">MODE TEST</option>
                   <option value="LIVE">MODE LIVE</option>
@@ -193,7 +197,7 @@ export function SettingsPage() {
                       paydunyaPublicKey: e.target.value,
                     })
                   }
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  className="px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
                 <input
                   type="password"
@@ -205,7 +209,7 @@ export function SettingsPage() {
                       paydunyaPrivateKey: e.target.value,
                     })
                   }
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  className="px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
                 <input
                   type="password"
@@ -217,7 +221,7 @@ export function SettingsPage() {
                       paydunyaToken: e.target.value,
                     })
                   }
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  className="px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
               </div>
             </div>
@@ -232,22 +236,22 @@ export function SettingsPage() {
 
           <div className="lg:col-span-5 space-y-6">
             {sub && (
-              <div className="bg-[#182333] text-white rounded-xl p-6 space-y-2">
+              <div className="bg-[#182333] dark:bg-[var(--rm-surface)] dark:border dark:border-[var(--rm-border)] text-white dark:text-[var(--rm-ink)] rounded-xl p-6 space-y-2">
                 <p className="text-xs text-[#FF8738] font-semibold">
                   Abonnement SaaS (Circuit A)
                 </p>
                 <h3 className="text-xl font-bold">{sub.planName}</h3>
-                <p className="text-sm text-slate-300 tabular-nums">
+                <p className="text-sm text-slate-300 dark:text-[var(--rm-ink-muted)] tabular-nums">
                   {formatFcfa(sub.priceMonthlyXof)} / mois · Statut : {sub.status}
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 dark:text-[var(--rm-ink-muted)]">
                   Échéance en cours : {formatDateFr(sub.currentPeriodEnd)}
                 </p>
               </div>
             )}
 
-            <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-              <h3 className="text-base font-bold text-[#182333]">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6 space-y-4">
+              <h3 className="text-base font-bold text-[var(--rm-ink)]">
                 Contacter le support Resto’MAX
               </h3>
               <form onSubmit={createTicket} className="space-y-3">
@@ -259,7 +263,7 @@ export function SettingsPage() {
                   onChange={(e) =>
                     setTicketForm({ ...ticketForm, subject: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
                 <textarea
                   required
@@ -269,19 +273,19 @@ export function SettingsPage() {
                   onChange={(e) =>
                     setTicketForm({ ...ticketForm, message: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
                 <button
                   type="submit"
-                  className="w-full py-2 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+                  className="w-full py-2 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
                 >
                   Ouvrir un ticket support
                 </button>
               </form>
 
               {tickets.length > 0 && (
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <p className="text-xs font-semibold text-[#64748B]">
+                <div className="pt-3 border-t border-[var(--rm-border-subtle)] space-y-2">
+                  <p className="text-xs font-semibold text-[var(--rm-ink-muted)]">
                     Vos tickets récents
                   </p>
                   {tickets.map((t) => (
@@ -289,7 +293,7 @@ export function SettingsPage() {
                       key={t.id}
                       className="text-xs flex justify-between py-1"
                     >
-                      <span className="truncate font-medium text-[#182333]">
+                      <span className="truncate font-medium text-[var(--rm-ink)]">
                         {t.subject}
                       </span>
                       <span className="text-[#FF8738] font-semibold shrink-0 ml-2">

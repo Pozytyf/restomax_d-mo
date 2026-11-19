@@ -9,13 +9,16 @@ import {
   ShoppingBag,
   TrendingUp,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { RestaurantLayout } from '../RestaurantLayout';
+import { useAuth } from '../../app/providers/AuthProvider';
 import { apiFetch } from '../../services/api';
 import {
+  formatDateFr,
   formatFcfa,
   formatTimeFr,
-  ORDER_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS,
+  getOrderStatusLabel,
+  getPaymentMethodLabel,
 } from '../../utils/format';
 
 interface DashboardData {
@@ -61,16 +64,51 @@ interface DashboardData {
   }>;
 }
 
+interface FinanceOverviewData {
+  summary: {
+    grossSalesXof: number;
+    collectedXof: number;
+    taxCollectedXof: number;
+    cogsXof: number;
+    expensesXof: number;
+    netEstimatedMarginXof: number;
+  };
+  today: {
+    date: string;
+    revenueXof: number;
+    collectedXof: number;
+    ordersCount: number;
+    avgBasketXof: number;
+  };
+  byMethod: Array<{ method: string; amountXof: number; count: number }>;
+}
+
 export function OwnerDashboardPage() {
+  const { t } = useTranslation();
+  const { can } = useAuth();
+  const canReadFinance = can('finance:read');
   const [data, setData] = useState<DashboardData | null>(null);
+  const [finance, setFinance] = useState<FinanceOverviewData | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
-    apiFetch<DashboardData>('/api/restaurant/dashboard')
-      .then(setData)
+    const dashboardReq = apiFetch<DashboardData>('/api/restaurant/dashboard');
+    const financeReq = canReadFinance
+      ? apiFetch<FinanceOverviewData>('/api/restaurant/finance').catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([dashboardReq, financeReq])
+      .then(([dashRes, finRes]) => {
+        setData(dashRes);
+        if (finRes) {
+          setFinance(finRes);
+        }
+        setLastSyncedAt(new Date().toISOString());
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [canReadFinance]);
 
   useEffect(() => {
     load();
@@ -83,14 +121,14 @@ export function OwnerDashboardPage() {
 
   return (
     <RestaurantLayout
-      title="Tableau de bord Propriétaire"
+      title={t('dashboard.title')}
       onRealtimeEvent={load}
       actions={
         <Link
           to="/app/pos"
           className="px-4 py-2 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold transition-colors whitespace-nowrap"
         >
-          Ouvrir la caisse POS
+          {t('dashboard.openPos')}
         </Link>
       }
     >
@@ -99,7 +137,7 @@ export function OwnerDashboardPage() {
           {[1, 2, 3, 4].map((n) => (
             <div
               key={n}
-              className="h-28 rounded-xl bg-white border border-slate-200 animate-pulse"
+              className="h-28 rounded-xl bg-[var(--rm-surface)] border border-[var(--rm-border)] animate-pulse"
             />
           ))}
         </div>
@@ -107,46 +145,50 @@ export function OwnerDashboardPage() {
         <div className="space-y-6">
           {/* Primary KPI Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between text-[#64748B] text-xs font-medium">
-                <span>Chiffre d’affaires</span>
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex items-center justify-between text-[var(--rm-ink-muted)] text-xs font-medium">
+                <span>{t('dashboard.revenue')}</span>
                 <TrendingUp className="w-4 h-4 text-[#14B8A6]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {formatFcfa(data.kpis.totalRevenueXof)}
               </p>
-              <p className="mt-1 text-xs text-[#64748B] tabular-nums">
-                Encaissé : {formatFcfa(data.kpis.collectedXof)}
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)] tabular-nums">
+                {t('dashboard.collected', {
+                  amount: formatFcfa(data.kpis.collectedXof),
+                })}
               </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between text-[#64748B] text-xs font-medium">
-                <span>Commandes</span>
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex items-center justify-between text-[var(--rm-ink-muted)] text-xs font-medium">
+                <span>{t('dashboard.orders')}</span>
                 <ShoppingBag className="w-4 h-4 text-[#FF8738]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {data.kpis.ordersCount}
               </p>
-              <p className="mt-1 text-xs text-[#64748B]">
-                Total hors annulations
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)]">
+                {t('dashboard.ordersExcludingCancelled')}
               </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between text-[#64748B] text-xs font-medium">
-                <span>Panier moyen</span>
-                <CreditCard className="w-4 h-4 text-[#182333]" />
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex items-center justify-between text-[var(--rm-ink-muted)] text-xs font-medium">
+                <span>{t('dashboard.avgBasket')}</span>
+                <CreditCard className="w-4 h-4 text-[var(--rm-ink)]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {formatFcfa(data.kpis.avgBasketXof)}
               </p>
-              <p className="mt-1 text-xs text-[#64748B]">Par commande</p>
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)]">
+                {t('dashboard.perOrder')}
+              </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between text-[#64748B] text-xs font-medium">
-                <span>En attente / Cuisine</span>
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex items-center justify-between text-[var(--rm-ink-muted)] text-xs font-medium">
+                <span>{t('dashboard.pendingKitchen')}</span>
                 <Clock className="w-4 h-4 text-[#E5A32A]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#FF8738] tabular-nums">
@@ -154,44 +196,141 @@ export function OwnerDashboardPage() {
               </p>
               <Link
                 to="/app/kitchen"
-                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#182333] hover:text-[#FF8738]"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[var(--rm-ink)] hover:text-[#FF8738]"
               >
-                <span>Voir KDS</span>
+                <span>{t('dashboard.viewKds')}</span>
                 <ArrowUpRight className="w-3 h-3" />
               </Link>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between text-[#64748B] text-xs font-medium">
-                <span>Tables occupées</span>
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex items-center justify-between text-[var(--rm-ink-muted)] text-xs font-medium">
+                <span>{t('dashboard.occupiedTables')}</span>
                 <LayoutGrid className="w-4 h-4 text-[#14B8A6]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {data.kpis.tablesOccupied} / {data.kpis.tablesTotal}
               </p>
-              <p className="mt-1 text-xs text-[#64748B] tabular-nums">
-                {data.kpis.tablesReserved} réservée(s)
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)] tabular-nums">
+                {t('dashboard.reservedTables', {
+                  count: data.kpis.tablesReserved,
+                })}
               </p>
             </div>
           </div>
 
+          {/* Real-Time Daily Sales Summary Widget (Finance API) */}
+          {finance && (
+            <section
+              aria-label={t('dashboard.todayRevenueTitle')}
+              className="bg-[#182333] dark:bg-[var(--rm-surface)] text-white dark:text-[var(--rm-ink)] rounded-xl p-6 border border-[#223044] dark:border-[var(--rm-border)]"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-white/10 dark:border-[var(--rm-border)]">
+                <div>
+                  <p className="text-xs font-semibold text-[#FF8738]">
+                    {t('dashboard.realtimeSalesSubtitle', {
+                      date: formatDateFr(`${finance.today.date}T12:00:00.000Z`),
+                    })}
+                  </p>
+                  <h2 className="text-lg font-bold text-white dark:text-[var(--rm-ink)] mt-0.5">
+                    {t('dashboard.todayRevenueTitle')}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-4">
+                  {lastSyncedAt && (
+                    <span className="text-xs text-slate-400 dark:text-[var(--rm-ink-muted)] tabular-nums">
+                      {t('dashboard.updatedAt', {
+                        time: formatTimeFr(lastSyncedAt),
+                      })}
+                    </span>
+                  )}
+                  <Link
+                    to="/app/finance"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#FF8738] hover:underline whitespace-nowrap"
+                  >
+                    <span>{t('dashboard.openFinance')}</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+                <div className="rounded-xl bg-white/5 dark:bg-[var(--rm-surface-muted)] border border-white/10 dark:border-[var(--rm-border)] p-4">
+                  <p className="text-xs text-slate-300 dark:text-[var(--rm-ink-muted)]">
+                    {t('dashboard.todayGross')}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold text-[#FF8738] tabular-nums">
+                    {formatFcfa(finance.today.revenueXof)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-[var(--rm-ink-muted)] tabular-nums">
+                    {t('dashboard.cumulativeGross', {
+                      amount: formatFcfa(finance.summary.grossSalesXof),
+                    })}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-white/5 dark:bg-[var(--rm-surface-muted)] border border-white/10 dark:border-[var(--rm-border)] p-4">
+                  <p className="text-xs text-slate-300 dark:text-[var(--rm-ink-muted)]">
+                    {t('dashboard.collectedToday')}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold text-[#14B8A6] tabular-nums">
+                    {formatFcfa(finance.today.collectedXof)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-[var(--rm-ink-muted)] tabular-nums">
+                    {t('dashboard.totalCollectedLabel', {
+                      amount: formatFcfa(finance.summary.collectedXof),
+                    })}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-white/5 dark:bg-[var(--rm-surface-muted)] border border-white/10 dark:border-[var(--rm-border)] p-4">
+                  <p className="text-xs text-slate-300 dark:text-[var(--rm-ink-muted)]">
+                    {t('dashboard.todayOrders')}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold text-white dark:text-[var(--rm-ink)] tabular-nums">
+                    {finance.today.ordersCount}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-[var(--rm-ink-muted)] tabular-nums">
+                    {t('dashboard.avgBasketLabel', {
+                      amount: formatFcfa(finance.today.avgBasketXof),
+                    })}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-white/5 dark:bg-[var(--rm-surface-muted)] border border-white/10 dark:border-[var(--rm-border)] p-4">
+                  <p className="text-xs text-slate-300 dark:text-[var(--rm-ink-muted)]">
+                    {t('dashboard.netMargin')}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold text-white dark:text-[var(--rm-ink)] tabular-nums">
+                    {formatFcfa(finance.summary.netEstimatedMarginXof)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-[var(--rm-ink-muted)] tabular-nums">
+                    {t('dashboard.vatIncluded', {
+                      amount: formatFcfa(finance.summary.taxCollectedXof),
+                    })}
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Performance Chart + Financial Summary */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 p-6">
+            <div className="lg:col-span-8 bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-base font-bold text-[#182333]">
-                    Performance des ventes (FCFA)
+                  <h2 className="text-base font-bold text-[var(--rm-ink)]">
+                    {t('dashboard.salesPerfTitle')}
                   </h2>
-                  <p className="text-xs text-[#64748B]">
-                    Historique journalier calculé sur vos commandes réelles
+                  <p className="text-xs text-[var(--rm-ink-muted)]">
+                    {t('dashboard.salesPerfSubtitle')}
                   </p>
                 </div>
               </div>
 
               {data.revenueSeries.length === 0 ? (
-                <div className="h-52 flex items-center justify-center text-sm text-[#64748B]">
-                  Aucune vente enregistrée pour le moment.
+                <div className="h-52 flex items-center justify-center text-sm text-[var(--rm-ink-muted)]">
+                  {t('dashboard.noSalesYet')}
                 </div>
               ) : (
                 <div className="h-56 flex items-end gap-3 pt-4">
@@ -205,15 +344,15 @@ export function OwnerDashboardPage() {
                         key={pt.day}
                         className="flex-1 flex flex-col items-center justify-end h-full group"
                       >
-                        <span className="text-[11px] font-mono text-[#64748B] mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity tabular-nums">
+                        <span className="text-[11px] font-mono text-[var(--rm-ink-muted)] mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity tabular-nums">
                           {Math.round(pt.revenue_xof / 1000)}k
                         </span>
                         <div
                           style={{ height: `${pct}%` }}
-                          className="w-full max-w-[44px] rounded-t-md bg-[#182333] group-hover:bg-[#FF8738] transition-colors"
+                          className="w-full max-w-[44px] rounded-t-md bg-[#182333] dark:bg-slate-300 group-hover:bg-[#FF8738] dark:group-hover:bg-[#FF8738] transition-colors"
                           title={`${pt.day}: ${formatFcfa(pt.revenue_xof)}`}
                         />
-                        <span className="mt-2 text-[11px] text-[#64748B] font-mono">
+                        <span className="mt-2 text-[11px] text-[var(--rm-ink-muted)] font-mono">
                           {pt.day.slice(5)}
                         </span>
                       </div>
@@ -223,30 +362,36 @@ export function OwnerDashboardPage() {
               )}
             </div>
 
-            <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between">
+            <div className="lg:col-span-4 bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6 flex flex-col justify-between">
               <div>
-                <h2 className="text-base font-bold text-[#182333]">
-                  Résumé financier
+                <h2 className="text-base font-bold text-[var(--rm-ink)]">
+                  {t('dashboard.financialSummaryTitle')}
                 </h2>
-                <p className="text-xs text-[#64748B]">
-                  Encaissements & charges enregistrées
+                <p className="text-xs text-[var(--rm-ink-muted)]">
+                  {t('dashboard.financialSummarySubtitle')}
                 </p>
 
                 <div className="mt-5 space-y-3 text-sm">
-                  <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                    <span className="text-[#64748B]">Volume facturé</span>
-                    <span className="font-bold text-[#182333] tabular-nums">
+                  <div className="flex items-center justify-between py-2 border-b border-[var(--rm-border-subtle)]">
+                    <span className="text-[var(--rm-ink-muted)]">
+                      {t('dashboard.billedVolume')}
+                    </span>
+                    <span className="font-bold text-[var(--rm-ink)] tabular-nums">
                       {formatFcfa(data.kpis.totalRevenueXof)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                    <span className="text-[#64748B]">Total encaissé</span>
+                  <div className="flex items-center justify-between py-2 border-b border-[var(--rm-border-subtle)]">
+                    <span className="text-[var(--rm-ink-muted)]">
+                      {t('dashboard.totalCollectedRow')}
+                    </span>
                     <span className="font-bold text-[#14B8A6] tabular-nums">
                       {formatFcfa(data.kpis.collectedXof)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                    <span className="text-[#64748B]">Dépenses saisies</span>
+                  <div className="flex items-center justify-between py-2 border-b border-[var(--rm-border-subtle)]">
+                    <span className="text-[var(--rm-ink-muted)]">
+                      {t('dashboard.recordedExpenses')}
+                    </span>
                     <span className="font-bold text-[#E05252] tabular-nums">
                       {formatFcfa(data.kpis.expensesXof)}
                     </span>
@@ -254,8 +399,8 @@ export function OwnerDashboardPage() {
                 </div>
 
                 <div className="mt-5">
-                  <p className="text-xs font-semibold text-[#182333] mb-2">
-                    Répartition encaissements
+                  <p className="text-xs font-semibold text-[var(--rm-ink)] mb-2">
+                    {t('dashboard.paymentBreakdown')}
                   </p>
                   <div className="space-y-2">
                     {data.paymentBreakdown.map((pm) => (
@@ -263,11 +408,10 @@ export function OwnerDashboardPage() {
                         key={pm.method}
                         className="flex items-center justify-between text-xs"
                       >
-                        <span className="text-[#64748B]">
-                          {PAYMENT_METHOD_LABELS[pm.method] || pm.method} (
-                          {pm.count})
+                        <span className="text-[var(--rm-ink-muted)]">
+                          {getPaymentMethodLabel(pm.method)} ({pm.count})
                         </span>
-                        <span className="font-semibold text-[#182333] tabular-nums">
+                        <span className="font-semibold text-[var(--rm-ink)] tabular-nums">
                           {formatFcfa(pm.total_xof)}
                         </span>
                       </div>
@@ -280,34 +424,33 @@ export function OwnerDashboardPage() {
                 to="/app/finance"
                 className="mt-6 text-xs font-semibold text-[#FF8738] hover:underline inline-flex items-center gap-1"
               >
-                <span>Voir le détail financier</span>
+                <span>{t('dashboard.seeFinancialDetails')}</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           </div>
 
-          {/* Top Items + Critical Stocks + Recent Orders & Staff Activity */}
+          {/* Top Items + Critical Stocks + Staff Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Top Selling Articles */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-base font-bold text-[#182333] mb-4">
-                Articles les plus vendus
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
+              <h2 className="text-base font-bold text-[var(--rm-ink)] mb-4">
+                {t('dashboard.topItemsTitle')}
               </h2>
               <div className="space-y-3">
                 {data.topItems.map((it, idx) => (
                   <div
                     key={it.name}
-                    className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0"
+                    className="flex items-center justify-between gap-3 py-2 border-b border-[var(--rm-border-subtle)] last:border-0"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#182333] truncate">
+                      <p className="text-sm font-medium text-[var(--rm-ink)] truncate">
                         {idx + 1}. {it.name}
                       </p>
-                      <p className="text-xs text-[#64748B] tabular-nums">
-                        {it.qty} vendus
+                      <p className="text-xs text-[var(--rm-ink-muted)] tabular-nums">
+                        {t('dashboard.soldCount', { count: it.qty })}
                       </p>
                     </div>
-                    <span className="text-xs font-bold text-[#182333] tabular-nums whitespace-nowrap">
+                    <span className="text-xs font-bold text-[var(--rm-ink)] tabular-nums whitespace-nowrap">
                       {formatFcfa(it.revenue_xof)}
                     </span>
                   </div>
@@ -315,38 +458,41 @@ export function OwnerDashboardPage() {
               </div>
             </div>
 
-            {/* Critical Stocks */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-[#182333]">
-                  Stocks critiques
+                <h2 className="text-base font-bold text-[var(--rm-ink)]">
+                  {t('dashboard.criticalStocksTitle')}
                 </h2>
                 <Link
                   to="/app/stocks"
                   className="text-xs font-semibold text-[#FF8738] hover:underline"
                 >
-                  Gérer
+                  {t('common.manage')}
                 </Link>
               </div>
               {data.lowStocks.length === 0 ? (
-                <p className="text-sm text-[#64748B] py-6 text-center">
-                  Tous les niveaux de stock sont conformes.
+                <p className="text-sm text-[var(--rm-ink-muted)] py-6 text-center">
+                  {t('dashboard.allStocksOk')}
                 </p>
               ) : (
                 <div className="space-y-3">
                   {data.lowStocks.map((st) => (
                     <div
                       key={st.id}
-                      className="p-3 rounded-lg bg-red-50/70 border border-red-200 flex items-start justify-between gap-3"
+                      className="p-3 rounded-lg bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 flex items-start justify-between gap-3"
                     >
                       <div className="flex items-start gap-2.5">
                         <AlertTriangle className="w-4 h-4 text-[#E05252] shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-sm font-semibold text-[#182333]">
+                          <p className="text-sm font-semibold text-[var(--rm-ink)]">
                             {st.name}
                           </p>
-                          <p className="text-xs text-[#64748B]">
-                            Fournisseur : {st.supplier_name || 'Non défini'}
+                          <p className="text-xs text-[var(--rm-ink-muted)]">
+                            {t('dashboard.supplierLabel', {
+                              name:
+                                st.supplier_name ||
+                                t('dashboard.undefinedSupplier'),
+                            })}
                           </p>
                         </div>
                       </div>
@@ -354,8 +500,10 @@ export function OwnerDashboardPage() {
                         <p className="text-xs font-bold text-[#E05252]">
                           {st.quantity} {st.unit}
                         </p>
-                        <p className="text-[11px] text-[#64748B]">
-                          Seuil : {st.min_threshold}
+                        <p className="text-[11px] text-[var(--rm-ink-muted)]">
+                          {t('dashboard.thresholdLabel', {
+                            value: st.min_threshold,
+                          })}
                         </p>
                       </div>
                     </div>
@@ -364,26 +512,25 @@ export function OwnerDashboardPage() {
               )}
             </div>
 
-            {/* Staff Activity */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-base font-bold text-[#182333] mb-4">
-                Activité du personnel
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
+              <h2 className="text-base font-bold text-[var(--rm-ink)] mb-4">
+                {t('dashboard.staffActivityTitle')}
               </h2>
               <div className="space-y-3">
                 {data.staffActivity.map((act, i) => (
                   <div
                     key={`${act.created_at}-${i}`}
-                    className="py-2 border-b border-slate-100 last:border-0 text-xs"
+                    className="py-2 border-b border-[var(--rm-border-subtle)] last:border-0 text-xs"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-[#182333] truncate">
+                      <span className="font-semibold text-[var(--rm-ink)] truncate">
                         {act.action}
                       </span>
-                      <span className="text-[#64748B] tabular-nums shrink-0">
+                      <span className="text-[var(--rm-ink-muted)] tabular-nums shrink-0">
                         {formatTimeFr(act.created_at)}
                       </span>
                     </div>
-                    <p className="text-[#64748B] mt-0.5 truncate">
+                    <p className="text-[var(--rm-ink-muted)] mt-0.5 truncate">
                       {act.actor_email} {act.details ? `· ${act.details}` : ''}
                     </p>
                   </div>
@@ -393,45 +540,60 @@ export function OwnerDashboardPage() {
           </div>
 
           {/* Recent Orders Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#182333]">
-                Dernières commandes
+          <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--rm-border)] flex items-center justify-between">
+              <h2 className="text-base font-bold text-[var(--rm-ink)]">
+                {t('dashboard.recentOrdersTitle')}
               </h2>
               <Link
                 to="/app/orders"
                 className="text-xs font-semibold text-[#FF8738] hover:underline"
               >
-                Tout voir
+                {t('common.seeAll')}
               </Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+                <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                   <tr>
-                    <th className="px-6 py-3 font-semibold">N°</th>
-                    <th className="px-6 py-3 font-semibold">Client / Table</th>
-                    <th className="px-6 py-3 font-semibold">Canal</th>
-                    <th className="px-6 py-3 font-semibold">Statut</th>
-                    <th className="px-6 py-3 font-semibold text-right">Total</th>
-                    <th className="px-6 py-3 font-semibold text-right">Heure</th>
+                    <th className="px-6 py-3 font-semibold">
+                      {t('dashboard.orderNoCol')}
+                    </th>
+                    <th className="px-6 py-3 font-semibold">
+                      {t('dashboard.customerTableCol')}
+                    </th>
+                    <th className="px-6 py-3 font-semibold">
+                      {t('common.channel')}
+                    </th>
+                    <th className="px-6 py-3 font-semibold">
+                      {t('common.status')}
+                    </th>
+                    <th className="px-6 py-3 font-semibold text-right">
+                      {t('common.total')}
+                    </th>
+                    <th className="px-6 py-3 font-semibold text-right">
+                      {t('dashboard.timeCol')}
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                   {data.recentOrders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-3 font-mono font-semibold text-[#182333]">
+                    <tr
+                      key={ord.id}
+                      className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                    >
+                      <td className="px-6 py-3 font-mono font-semibold text-[var(--rm-ink)]">
                         {ord.order_number}
                       </td>
-                      <td className="px-6 py-3 text-[#182333]">
+                      <td className="px-6 py-3 text-[var(--rm-ink)]">
                         {ord.table_label || ord.customer_name}
                       </td>
-                      <td className="px-6 py-3 text-xs text-[#64748B]">
+                      <td className="px-6 py-3 text-xs text-[var(--rm-ink-muted)]">
                         {ord.order_type === 'QR_TABLE'
-                          ? 'QR Table'
+                          ? t('common.qrTable')
                           : ord.order_type === 'TAKEAWAY'
-                            ? 'À emporter'
-                            : 'Sur place'}
+                            ? t('common.takeaway')
+                            : t('common.dineIn')}
                       </td>
                       <td className="px-6 py-3 text-xs font-semibold">
                         <span
@@ -443,13 +605,13 @@ export function OwnerDashboardPage() {
                                 : 'text-[#FF8738]'
                           }
                         >
-                          {ORDER_STATUS_LABELS[ord.status] || ord.status}
+                          {getOrderStatusLabel(ord.status)}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-right font-semibold text-[#182333] tabular-nums">
+                      <td className="px-6 py-3 text-right font-semibold text-[var(--rm-ink)] tabular-nums">
                         {formatFcfa(ord.total_xof)}
                       </td>
-                      <td className="px-6 py-3 text-right text-xs text-[#64748B] tabular-nums">
+                      <td className="px-6 py-3 text-right text-xs text-[var(--rm-ink-muted)] tabular-nums">
                         {formatTimeFr(ord.created_at)}
                       </td>
                     </tr>

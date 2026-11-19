@@ -87,6 +87,7 @@ export default function App() {
 
             {/* Guest Mobile-First QR Routes */}
             <Route path="/q/:token" element={<QrMenuPage />} />
+            <Route path="/q/:token/suivi" element={<QrOrderTrackingPage />} />
             <Route
               path="/q/:token/suivi/:orderId"
               element={<QrOrderTrackingPage />}

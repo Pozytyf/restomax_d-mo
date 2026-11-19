@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -9,6 +10,7 @@ import {
 } from '../../utils/format';
 
 export function PlatformBillingPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [invoices, setInvoices] = useState<
     Array<{
@@ -46,7 +48,7 @@ export function PlatformBillingPage() {
   };
 
   return (
-    <SuperAdminLayout title="Facturation SaaS (Circuit A)">
+    <SuperAdminLayout title={t('superadmin.billingTitle')}>
       <div className="space-y-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4 text-xs text-[#64748B]">
           Cette section suit exclusivement les abonnements payés par les restaurants à Resto’MAX. Les encaissements des convives ne transitent jamais ici.

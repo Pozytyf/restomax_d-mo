@@ -54,10 +54,13 @@ export const publicController = {
   async getQrImage(req: Request, res: Response) {
     try {
       const token = String(req.params.token);
-      const baseUrl =
-        process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const host = req.get('host');
+      const baseUrl = host
+        ? `${req.protocol}://${host}`
+        : process.env.APP_URL || 'http://localhost:3000';
       const svg = await publicService.generateQrSvg(token, baseUrl);
       res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'no-store');
       res.send(svg);
     } catch (err) {
       handleControllerError(res, err, 'Impossible de générer le QR code.');

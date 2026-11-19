@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3,
   CalendarClock,
@@ -14,89 +14,98 @@ import {
   Users,
   Utensils,
 } from 'lucide-react';
-import { AppShell, type NavItem } from '../components/AppShell';
+import { useTranslation } from 'react-i18next';
+import { AppShell, type NavItem, type ShellAlert } from '../components/AppShell';
 import { useAuth } from '../app/providers/AuthProvider';
+import { useRestaurantTheme } from '../app/hooks/useRestaurantTheme';
 import { useWebSocketRoom } from '../hooks/useWebSocket';
-import { formatTimeFr } from '../utils/format';
-import type { Permission } from '../types';
+import { apiFetch } from '../services/api';
+import { formatTimeFr, getOrderStatusLabel } from '../utils/format';
+import type { Permission, RestaurantNotification } from '../types';
 
-const ALL_NAV: Array<NavItem & { permission: Permission }> = [
+const ALL_NAV: Array<{
+  to: string;
+  labelKey: string;
+  icon: NavItem['icon'];
+  end?: boolean;
+  permission: Permission;
+}> = [
   {
     to: '/app',
-    label: 'Tableau de bord',
+    labelKey: 'nav.dashboard',
     icon: LayoutDashboard,
     end: true,
     permission: 'dashboard:read',
   },
   {
     to: '/app/pos',
-    label: 'Caisse POS',
+    labelKey: 'nav.pos',
     icon: CreditCard,
     permission: 'pos:use',
   },
   {
     to: '/app/orders',
-    label: 'Commandes',
+    labelKey: 'nav.orders',
     icon: ClipboardList,
     permission: 'orders:read',
   },
   {
     to: '/app/floor',
-    label: 'Salle & Tables',
+    labelKey: 'nav.floor',
     icon: LayoutGrid,
     permission: 'floor:read',
   },
   {
     to: '/app/kitchen',
-    label: 'Cuisine & Bar (KDS)',
+    labelKey: 'nav.kitchen',
     icon: ChefHat,
     permission: 'kitchen:read',
   },
   {
     to: '/app/menu',
-    label: 'Menu & Catalogue',
+    labelKey: 'nav.menu',
     icon: Utensils,
     permission: 'menu:read',
   },
   {
     to: '/app/stocks',
-    label: 'Stocks & Achats',
+    labelKey: 'nav.stocks',
     icon: Package,
     permission: 'stocks:read',
   },
   {
     to: '/app/staff',
-    label: 'Personnel & Droits',
+    labelKey: 'nav.staff',
     icon: Users,
     permission: 'staff:read',
   },
   {
     to: '/app/customers',
-    label: 'Clients & Fidélité',
+    labelKey: 'nav.customers',
     icon: UserCheck,
     permission: 'customers:read',
   },
   {
     to: '/app/reservations',
-    label: 'Réservations',
+    labelKey: 'nav.reservations',
     icon: CalendarClock,
     permission: 'reservations:read',
   },
   {
     to: '/app/qr',
-    label: 'QR Codes Tables',
+    labelKey: 'nav.qr',
     icon: QrCode,
     permission: 'qr:read',
   },
   {
     to: '/app/finance',
-    label: 'Finances & Rapports',
+    labelKey: 'nav.finance',
     icon: BarChart3,
     permission: 'finance:read',
   },
   {
     to: '/app/settings',
-    label: 'Paramètres',
+    labelKey: 'nav.settings',
     icon: Settings,
     permission: 'settings:read',
   },
@@ -113,39 +122,69 @@ export function RestaurantLayout({
   onRealtimeEvent?: (eventType: string) => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const { user, can } = useAuth();
-  const [alerts, setAlerts] = useState<
-    Array<{ id: string; text: string; time: string }>
+  const { theme, toggleTheme } = useRestaurantTheme();
+  const [liveAlerts, setLiveAlerts] = useState<ShellAlert[]>([]);
+  const [dbNotifications, setDbNotifications] = useState<
+    RestaurantNotification[]
   >([]);
+
+  const loadNotifications = useCallback(() => {
+    if (!user?.restaurantId) return;
+    apiFetch<{ notifications: RestaurantNotification[] }>(
+      '/api/restaurant/notifications',
+    )
+      .then((res) => setDbNotifications(res.notifications))
+      .catch(() => {});
+  }, [user?.restaurantId]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   const handleWs = useCallback(
     (msg: { type: string; payload?: unknown; timestamp?: string }) => {
       if (msg.type === 'connection:ready') return;
-      const time = msg.timestamp ? formatTimeFr(msg.timestamp) : 'À l’instant';
+      const time = msg.timestamp
+        ? formatTimeFr(msg.timestamp)
+        : t('alerts.justNow');
       let text = '';
       if (msg.type === 'order:created') {
-        const p = msg.payload as { orderNumber?: string; orderType?: string } | undefined;
-        text = `Nouvelle commande ${p?.orderNumber || ''} (${p?.orderType === 'QR_TABLE' ? 'QR Table' : 'Salle'})`;
+        const p = msg.payload as
+          | { orderNumber?: string; orderType?: string }
+          | undefined;
+        text = t('alerts.newOrder', {
+          orderNumber: p?.orderNumber || '',
+          channel:
+            p?.orderType === 'QR_TABLE'
+              ? t('common.qrTable')
+              : t('common.dineIn'),
+        });
       } else if (msg.type === 'order:updated') {
         const p = msg.payload as { status?: string } | undefined;
-        text = `Commande mise à jour : ${p?.status || ''}`;
+        text = t('alerts.orderUpdated', {
+          status: p?.status ? getOrderStatusLabel(p.status) : '',
+        });
       } else if (msg.type === 'payment:created') {
-        text = 'Nouvel encaissement enregistré';
-      } else if (msg.type === 'stock:alert') {
-        const p = msg.payload as { name?: string } | undefined;
-        text = `Alerte stock critique : ${p?.name || ''}`;
+        text = t('alerts.paymentCreated');
+      } else if (
+        msg.type === 'stock:alert' ||
+        msg.type === 'notifications:updated'
+      ) {
+        loadNotifications();
       }
       if (text) {
-        setAlerts((prev) => [
-          { id: `${Date.now()}-${Math.random()}`, text, time },
-          ...prev.slice(0, 14),
+        setLiveAlerts((prev) => [
+          { id: `${Date.now()}-${Math.random()}`, text, time, read: false },
+          ...prev.slice(0, 10),
         ]);
       }
       if (onRealtimeEvent) {
         onRealtimeEvent(msg.type);
       }
     },
-    [onRealtimeEvent],
+    [loadNotifications, onRealtimeEvent, t],
   );
 
   useWebSocketRoom(
@@ -153,15 +192,63 @@ export function RestaurantLayout({
     handleWs,
   );
 
-  const visibleNav = ALL_NAV.filter((item) => can(item.permission));
+  const handleMarkAllRead = async () => {
+    setLiveAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
+    try {
+      await apiFetch('/api/restaurant/notifications/read', {
+        method: 'PATCH',
+        body: JSON.stringify({ all: true }),
+      });
+      loadNotifications();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleMarkOneRead = async (id: string) => {
+    try {
+      await apiFetch('/api/restaurant/notifications/read', {
+        method: 'PATCH',
+        body: JSON.stringify({ id }),
+      });
+      loadNotifications();
+    } catch {
+      // ignore
+    }
+  };
+
+  const persistentAlerts: ShellAlert[] = dbNotifications.map((n) => ({
+    id: n.id,
+    text: n.title,
+    subtitle: n.message,
+    time: formatTimeFr(n.createdAt),
+    read: n.isRead,
+    persistent: true,
+  }));
+
+  const mergedAlerts = [...persistentAlerts, ...liveAlerts].slice(0, 20);
+  const unreadCount = mergedAlerts.filter((a) => !a.read).length;
+
+  const visibleNav: NavItem[] = ALL_NAV.filter((item) =>
+    can(item.permission),
+  ).map((item) => ({
+    to: item.to,
+    label: t(item.labelKey),
+    icon: item.icon,
+    end: item.end,
+  }));
 
   return (
     <AppShell
       title={title}
-      breadcrumb={`Resto’MAX / ${user?.restaurantName || 'Établissement'}`}
+      breadcrumb={`${t('common.brand')} / ${user?.restaurantName || t('header.venueFallback')}`}
       navItems={visibleNav}
-      alerts={alerts}
+      alerts={mergedAlerts}
+      unreadCount={unreadCount}
+      onMarkAllRead={handleMarkAllRead}
+      onMarkRead={handleMarkOneRead}
       actions={actions}
+      themeToggle={{ theme, onToggle: toggleTheme }}
     >
       {children}
     </AppShell>
