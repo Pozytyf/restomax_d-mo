@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CloudUpload,
   Database,
+  Keyboard,
   Minus,
   Plus,
   Printer,
@@ -19,6 +20,7 @@ import { apiFetch, isConnectivityError } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import { getActiveIntlLocale } from '../../i18n';
 import { formatFcfa, getPaymentMethodLabel } from '../../utils/format';
+import { executeThermalPrint } from '../../utils/thermalPrint';
 import {
   attachPaymentToOfflineOrder,
   listOfflineQueue,
@@ -99,8 +101,15 @@ export function PosPage() {
     method: PaymentMethod;
     reference: string;
     offlinePending?: boolean;
+    tableLabel?: string | null;
+    customerName?: string;
+    items?: Array<{ name: string; quantity: number; lineTotalXof?: number }>;
   } | null>(null);
+  const [printingThermal, setPrintingThermal] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const customerInputRef = useRef<HTMLInputElement | null>(null);
 
   const refreshQueue = useCallback(async () => {
     const entries = await listOfflineQueue(restaurantId);
@@ -434,6 +443,16 @@ export function PosPage() {
         }),
       });
 
+      const submittedItems = cart.map((c) => ({
+        name: c.menuItem.name,
+        quantity: c.quantity,
+        lineTotalXof: (c.menuItem.priceXof + c.optionsDeltaXof) * c.quantity,
+      }));
+      const selectedTbl =
+        orderType === 'DINE_IN' && tableId
+          ? tables.find((tbl) => tbl.id === tableId)
+          : null;
+
       setCart([]);
       setDiscountXof(0);
       setCustomerName('');
@@ -449,6 +468,22 @@ export function PosPage() {
           orderNumber: res.order.orderNumber,
           totalXof: res.order.totalXof,
           paidXof: 0,
+          tableLabel: selectedTbl ? selectedTbl.label : null,
+          customerName: customerName.trim() || undefined,
+          items: submittedItems.map((si, idx) => ({
+            id: `tmp-${idx}`,
+            orderId: res.order.id,
+            menuItemId: '',
+            name: si.name,
+            station: 'KITCHEN',
+            unitPriceXof: si.lineTotalXof,
+            optionsSummary: '',
+            optionsDeltaXof: 0,
+            quantity: si.quantity,
+            lineTotalXof: si.lineTotalXof,
+            notes: '',
+            prepStatus: 'PENDING',
+          })),
         } as Order);
         setPayAmount(res.order.totalXof);
       }
@@ -518,6 +553,13 @@ export function PosPage() {
       method: payMethod,
       reference: offlineRef,
       offlinePending: true,
+      tableLabel: targetOrder.tableLabel,
+      customerName: targetOrder.customerName,
+      items: targetOrder.items?.map((it) => ({
+        name: it.name,
+        quantity: it.quantity,
+        lineTotalXof: it.lineTotalXof,
+      })),
     });
     setPayModalOrder(null);
   };
@@ -566,6 +608,13 @@ export function PosPage() {
         paidAmount: res.payment.amountXof,
         method: res.payment.method,
         reference: res.payment.reference,
+        tableLabel: payModalOrder.tableLabel,
+        customerName: payModalOrder.customerName,
+        items: payModalOrder.items?.map((it) => ({
+          name: it.name,
+          quantity: it.quantity,
+          lineTotalXof: it.lineTotalXof,
+        })),
       });
       setPayModalOrder(null);
       void loadData();
@@ -626,8 +675,165 @@ export function PosPage() {
     return matchCat && matchSearch;
   });
 
+  const handleNewCustomerShortcut = useCallback(() => {
+    setPayModalOrder(null);
+    setReceipt(null);
+    setCart([]);
+    setDiscountXof(0);
+    setTableId('');
+    setCustomerName('');
+    setOrderType('DINE_IN');
+    notify(t('pos.toastNewCustomerReady'), 'info');
+    window.setTimeout(() => {
+      customerInputRef.current?.focus();
+    }, 0);
+  }, [notify, t]);
+
+  const handleCancelShortcut = useCallback(() => {
+    if (payModalOrder) {
+      setPayModalOrder(null);
+      return;
+    }
+    if (receipt) {
+      setReceipt(null);
+      return;
+    }
+    if (cart.length > 0 || customerName || discountXof > 0 || tableId) {
+      setCart([]);
+      setDiscountXof(0);
+      setCustomerName('');
+      setTableId('');
+      notify(t('pos.toastTicketCancelled'), 'info');
+    }
+  }, [
+    cart.length,
+    customerName,
+    discountXof,
+    notify,
+    payModalOrder,
+    receipt,
+    t,
+    tableId,
+  ]);
+
+  const shortcutHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  shortcutHandlerRef.current = (e: KeyboardEvent) => {
+    const key = e.key;
+    const target = e.target as HTMLElement | null;
+    const isTypingInField =
+      target !== null &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable);
+
+    if (key === 'F1') {
+      e.preventDefault();
+      handleNewCustomerShortcut();
+      return;
+    }
+
+    if (key === 'F2') {
+      e.preventDefault();
+      if (busy) return;
+      if (payModalOrder) {
+        if (payAmount > 0) {
+          void handlePayOrder();
+        }
+        return;
+      }
+      if (cart.length > 0) {
+        void submitOrder(true);
+      }
+      return;
+    }
+
+    if (key === 'F3') {
+      e.preventDefault();
+      handleCancelShortcut();
+      return;
+    }
+
+    if (key === 'F4') {
+      e.preventDefault();
+      if (!busy && !payModalOrder && cart.length > 0) {
+        void submitOrder(false);
+      }
+      return;
+    }
+
+    if (key === 'Escape') {
+      if (payModalOrder || receipt) {
+        e.preventDefault();
+        setPayModalOrder(null);
+        setReceipt(null);
+      }
+      return;
+    }
+
+    if (key === '/' && !isTypingInField && !payModalOrder && !receipt) {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+  };
+
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => shortcutHandlerRef.current(e);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
+
   return (
     <RestaurantLayout title={t('pos.title')} onRealtimeEvent={loadData}>
+      {/* Keyboard Shortcuts Bar */}
+      <div
+        data-testid="pos-shortcuts-bar"
+        className="mb-4 px-3.5 py-2.5 rounded-xl border border-[var(--rm-border)] bg-[var(--rm-surface)] flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--rm-ink-muted)]"
+      >
+        <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--rm-ink)]">
+          <Keyboard className="w-3.5 h-3.5 text-[#FF8738]" />
+          {t('pos.shortcutsBarLabel')}
+        </span>
+        <button
+          type="button"
+          onClick={handleNewCustomerShortcut}
+          className="inline-flex items-center gap-1.5 hover:text-[var(--rm-ink)] cursor-pointer"
+        >
+          <kbd className="px-1.5 py-0.5 rounded bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] font-mono text-[11px] font-bold text-[var(--rm-ink)]">
+            F1
+          </kbd>
+          <span>{t('pos.shortcutNewClient')}</span>
+        </button>
+        <span className="inline-flex items-center gap-1.5">
+          <kbd className="px-1.5 py-0.5 rounded bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] font-mono text-[11px] font-bold text-[var(--rm-ink)]">
+            F2
+          </kbd>
+          <span>{t('pos.shortcutValidate')}</span>
+        </span>
+        <button
+          type="button"
+          onClick={handleCancelShortcut}
+          className="inline-flex items-center gap-1.5 hover:text-[var(--rm-ink)] cursor-pointer"
+        >
+          <kbd className="px-1.5 py-0.5 rounded bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] font-mono text-[11px] font-bold text-[var(--rm-ink)]">
+            F3
+          </kbd>
+          <span>{t('pos.shortcutCancel')}</span>
+        </button>
+        <span className="inline-flex items-center gap-1.5">
+          <kbd className="px-1.5 py-0.5 rounded bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] font-mono text-[11px] font-bold text-[var(--rm-ink)]">
+            F4
+          </kbd>
+          <span>{t('pos.shortcutKitchen')}</span>
+        </span>
+        <span className="hidden sm:inline-flex items-center gap-1.5">
+          <kbd className="px-1.5 py-0.5 rounded bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] font-mono text-[11px] font-bold text-[var(--rm-ink)]">
+            /
+          </kbd>
+          <span>{t('pos.shortcutSearch')}</span>
+        </span>
+      </div>
+
       {/* Offline / Pending Queue Banner */}
       {(!isOnline || offlineQueue.length > 0) && (
         <div
@@ -689,6 +895,7 @@ export function PosPage() {
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-[var(--rm-ink-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -1039,6 +1246,7 @@ export function PosPage() {
             )}
 
             <input
+              ref={customerInputRef}
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
@@ -1114,21 +1322,31 @@ export function PosPage() {
                 type="button"
                 disabled={busy || cart.length === 0}
                 onClick={() => submitOrder(true)}
-                className="w-full py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-3 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {isOnline
-                  ? t('pos.sendAndPayOnline')
-                  : t('pos.saveAndPayOffline')}
+                <span>
+                  {isOnline
+                    ? t('pos.sendAndPayOnline')
+                    : t('pos.saveAndPayOffline')}
+                </span>
+                <kbd className="px-1.5 py-0.5 rounded bg-white/20 font-mono text-[10px]">
+                  F2
+                </kbd>
               </button>
               <button
                 type="button"
                 disabled={busy || cart.length === 0}
                 onClick={() => submitOrder(false)}
-                className="w-full py-2.5 rounded-lg bg-[#182333] hover:bg-[#223044] dark:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-3 rounded-lg bg-[#182333] hover:bg-[#223044] dark:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
-                {isOnline
-                  ? t('pos.sendToKitchenOnline')
-                  : t('pos.saveOfflineOpenTab')}
+                <span>
+                  {isOnline
+                    ? t('pos.sendToKitchenOnline')
+                    : t('pos.saveOfflineOpenTab')}
+                </span>
+                <kbd className="px-1.5 py-0.5 rounded bg-white/15 font-mono text-[10px]">
+                  F4
+                </kbd>
               </button>
             </div>
           </div>
@@ -1206,17 +1424,23 @@ export function PosPage() {
               <button
                 type="button"
                 onClick={() => setPayModalOrder(null)}
-                className="flex-1 py-2.5 rounded-lg border border-[var(--rm-border-input)] text-xs font-semibold text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] cursor-pointer"
+                className="flex-1 py-2.5 rounded-lg border border-[var(--rm-border-input)] text-xs font-semibold text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] cursor-pointer inline-flex items-center justify-center gap-1.5"
               >
-                {t('common.cancel')}
+                <span>{t('common.cancel')}</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] font-mono text-[10px]">
+                  F3
+                </kbd>
               </button>
               <button
                 type="button"
                 disabled={busy || payAmount <= 0}
                 onClick={handlePayOrder}
-                className="flex-1 py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
               >
-                {t('pos.confirmPaymentBtn')}
+                <span>{t('pos.confirmPaymentBtn')}</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-white/20 font-mono text-[10px]">
+                  F2
+                </kbd>
               </button>
             </div>
           </div>
@@ -1267,19 +1491,66 @@ export function PosPage() {
                 </span>
               </div>
             </div>
-            <div className="flex gap-2 no-print">
+            <div className="flex flex-wrap gap-2 no-print">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                data-testid="pos-thermal-print-btn"
+                disabled={printingThermal}
+                onClick={async () => {
+                  setPrintingThermal(true);
+                  try {
+                    const out = await executeThermalPrint({
+                      kind: 'RECEIPT',
+                      orderNumber: receipt.orderNumber,
+                      tableLabel: receipt.tableLabel,
+                      customerName: receipt.customerName,
+                      paymentMethod: getPaymentMethodLabel(receipt.method),
+                      paymentReference: receipt.reference,
+                      paidAmountXof: receipt.paidAmount,
+                      totalXof: receipt.totalXof,
+                      items:
+                        receipt.items && receipt.items.length > 0
+                          ? receipt.items
+                          : [
+                              {
+                                name: receipt.orderNumber,
+                                quantity: 1,
+                                lineTotalXof: receipt.totalXof,
+                              },
+                            ],
+                    });
+                    if (out.dispatchedVia === 'NETWORK') {
+                      notify(
+                        t('pos.thermalPrintNetworkSent', {
+                          bytes: out.networkResult?.bytesSent || 0,
+                        }),
+                        'success',
+                      );
+                    } else if (out.dispatchedVia === 'WEB_SERIAL') {
+                      notify(t('pos.thermalPrintUsbSent'), 'success');
+                    } else {
+                      notify(t('pos.thermalPrintBrowserFallback'), 'info');
+                    }
+                  } catch (err) {
+                    notify(
+                      err instanceof Error
+                        ? err.message
+                        : t('pos.thermalPrintError'),
+                      'error',
+                    );
+                  } finally {
+                    setPrintingThermal(false);
+                  }
+                }}
+                className="flex-1 py-2 px-3 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:border-[#FF8738] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>{t('pos.printBtn')}</span>
+                <Printer className="w-3.5 h-3.5 text-[#FF8738]" />
+                <span>{t('pos.thermalPrintBtn')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setReceipt(null)}
-                className="flex-1 py-2 rounded-lg bg-[#182333] dark:bg-[#223044] text-white text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2 px-3 rounded-lg bg-[#182333] dark:bg-[#223044] text-white text-xs font-semibold cursor-pointer"
               >
                 {t('common.close')}
               </button>

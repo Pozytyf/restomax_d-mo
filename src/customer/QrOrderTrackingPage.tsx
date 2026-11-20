@@ -6,12 +6,15 @@ import {
   CheckCircle2,
   ChefHat,
   Clock,
+  Moon,
   RefreshCw,
+  Sun,
   UtensilsCrossed,
   Wifi,
   XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useRestaurantTheme } from '../app/hooks/useRestaurantTheme';
 import { apiFetch } from '../services/api';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useWebSocketRoom } from '../hooks/useWebSocket';
@@ -73,6 +76,7 @@ function getStoredOrderIds(token: string): string[] {
 
 export function QrOrderTrackingPage() {
   const { t } = useTranslation();
+  const { theme, toggleTheme } = useRestaurantTheme();
   const { token, orderId } = useParams<{ token: string; orderId?: string }>();
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -189,7 +193,7 @@ export function QrOrderTrackingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6 text-sm text-[#64748B]">
+      <div className="min-h-screen bg-[var(--rm-canvas)] flex items-center justify-center p-6 text-sm text-[var(--rm-ink-muted)]">
         {t('customer.trackingLoading')}
       </div>
     );
@@ -197,13 +201,13 @@ export function QrOrderTrackingPage() {
 
   if (!orderId && !order) {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-7 max-w-md w-full text-center space-y-4">
+      <div className="min-h-screen bg-[var(--rm-canvas)] flex items-center justify-center p-6">
+        <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] p-7 max-w-md w-full text-center space-y-4">
           <UtensilsCrossed className="w-8 h-8 text-[#FF8738] mx-auto" />
-          <h1 className="text-lg font-bold text-[#182333]">
+          <h1 className="text-lg font-bold text-[var(--rm-ink)]">
             {t('customer.noActiveOrderTitle')}
           </h1>
-          <p className="text-xs text-[#64748B] leading-relaxed">
+          <p className="text-xs text-[var(--rm-ink-muted)] leading-relaxed">
             {t('customer.noActiveOrderDesc')}
           </p>
           {token && (
@@ -221,19 +225,19 @@ export function QrOrderTrackingPage() {
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-7 max-w-md w-full text-center space-y-3">
+      <div className="min-h-screen bg-[var(--rm-canvas)] flex items-center justify-center p-6">
+        <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] p-7 max-w-md w-full text-center space-y-3">
           <XCircle className="w-8 h-8 text-[#E05252] mx-auto" />
-          <h1 className="text-base font-bold text-[#182333]">
+          <h1 className="text-base font-bold text-[var(--rm-ink)]">
             {t('customer.trackingUnavailable')}
           </h1>
-          <p className="text-xs text-[#64748B]">
+          <p className="text-xs text-[var(--rm-ink-muted)]">
             {error || t('customer.orderNotFound')}
           </p>
           {token && (
             <Link
               to={`/q/${encodeURIComponent(token)}`}
-              className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-[#182333] text-white text-xs font-semibold"
+              className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-[#182333] dark:bg-[#FF8738] text-white text-xs font-semibold"
             >
               {t('customer.backToMenu')}
             </Link>
@@ -257,9 +261,9 @@ export function QrOrderTrackingPage() {
   const remainingXof = Math.max(0, order.totalXof - order.paidXof);
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] pb-24">
+    <div className="min-h-screen bg-[var(--rm-canvas)] text-[var(--rm-ink)] pb-24 transition-colors">
       {/* Compact Sticky Top Bar */}
-      <header className="sticky top-0 z-30 bg-[#182333] text-white px-4 py-3 shadow-sm">
+      <header className="sticky top-0 z-30 bg-[#182333] dark:bg-[#0F172A] border-b border-white/10 text-white px-4 py-3 shadow-sm">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           {token ? (
             <Link
@@ -281,6 +285,26 @@ export function QrOrderTrackingPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              data-testid="qr-tracking-theme-toggle"
+              aria-label={
+                theme === 'dark'
+                  ? t('header.enableLightMode')
+                  : t('header.enableDarkMode')
+              }
+              title={
+                theme === 'dark' ? t('header.lightMode') : t('header.darkMode')
+              }
+              className="p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-[#FF8738]" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
             <LanguageSwitcher variant="dark" />
             <button
               type="button"
@@ -314,8 +338,8 @@ export function QrOrderTrackingPage() {
                   }
                   className={`px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
                     active
-                      ? 'bg-[#182333] text-white'
-                      : 'bg-white border border-slate-200 text-[#64748B] hover:text-[#182333]'
+                      ? 'bg-[#182333] dark:bg-[#FF8738] text-white'
+                      : 'bg-[var(--rm-surface)] border border-[var(--rm-border)] text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)]'
                   }`}
                 >
                   {ord.orderNumber} · {getDeliveryStatusLabel(ord.status)}
@@ -326,7 +350,7 @@ export function QrOrderTrackingPage() {
         )}
 
         {/* Primary Delivery Status Hero */}
-        <section className="bg-[#182333] text-white rounded-2xl p-6 space-y-4">
+        <section className="bg-[#182333] dark:bg-[var(--rm-surface)] dark:border dark:border-[var(--rm-border)] text-white dark:text-[var(--rm-ink)] rounded-2xl p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="space-y-1">
               <p className="text-xs text-slate-300 font-mono">
@@ -385,12 +409,12 @@ export function QrOrderTrackingPage() {
         {/* Responsive 2-Column Content */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Column: Detailed Delivery Timeline */}
-          <section className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+          <section className="lg:col-span-7 bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] p-6 space-y-5">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-[#182333]">
+              <h3 className="text-sm font-bold text-[var(--rm-ink)]">
                 {t('customer.stepsTitle')}
               </h3>
-              <span className="text-xs text-[#64748B] tabular-nums">
+              <span className="text-xs text-[var(--rm-ink-muted)] tabular-nums">
                 {t('customer.updatedAtTime', {
                   time: formatTimeFr(order.updatedAt || order.createdAt),
                 })}
@@ -398,7 +422,7 @@ export function QrOrderTrackingPage() {
             </div>
 
             {isCancelled ? (
-              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-[#E05252] flex items-start gap-2.5">
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 text-xs text-[#E05252] flex items-start gap-2.5">
                 <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{t('customer.cancelledBanner')}</span>
               </div>
@@ -420,7 +444,7 @@ export function QrOrderTrackingPage() {
                             ? 'bg-[#14B8A6]/15 text-[#14B8A6]'
                             : current
                               ? 'bg-[#FF8738] text-white'
-                              : 'bg-[#F5F7FA] text-[#64748B]'
+                              : 'bg-[var(--rm-surface-muted)] text-[var(--rm-ink-muted)]'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
@@ -429,7 +453,7 @@ export function QrOrderTrackingPage() {
                         <div className="flex items-center justify-between gap-2">
                           <p
                             className={`text-sm font-bold ${
-                              reached ? 'text-[#182333]' : 'text-[#64748B]'
+                              reached ? 'text-[var(--rm-ink)]' : 'text-[var(--rm-ink-muted)]'
                             }`}
                           >
                             {t(`customer.steps.${step.key}.title`)}
@@ -440,7 +464,7 @@ export function QrOrderTrackingPage() {
                                 ? 'text-[#14B8A6]'
                                 : current
                                   ? 'text-[#FF8738]'
-                                  : 'text-[#64748B]'
+                                  : 'text-[var(--rm-ink-muted)]'
                             }`}
                           >
                             {completed
@@ -450,7 +474,7 @@ export function QrOrderTrackingPage() {
                                 : t('customer.stepUpcoming')}
                           </span>
                         </div>
-                        <p className="text-xs text-[#64748B] mt-0.5 leading-relaxed">
+                        <p className="text-xs text-[var(--rm-ink-muted)] mt-0.5 leading-relaxed">
                           {t(`customer.steps.${step.key}.desc`)}
                         </p>
                       </div>
@@ -462,27 +486,27 @@ export function QrOrderTrackingPage() {
           </section>
 
           {/* Right Column: Items Preparation & Payment Summary */}
-          <section className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <section className="lg:col-span-5 bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#182333]">
+              <h3 className="text-sm font-bold text-[var(--rm-ink)]">
                 {t('customer.orderDetailsTitle')}
               </h3>
-              <span className="text-xs text-[#64748B] tabular-nums">
+              <span className="text-xs text-[var(--rm-ink-muted)] tabular-nums">
                 {t('customer.articlesCount', {
                   count: order.items.reduce((sum, it) => sum + it.quantity, 0),
                 })}
               </span>
             </div>
 
-            <div className="divide-y divide-slate-100 text-sm">
+            <div className="divide-y divide-[var(--rm-border-subtle)] text-sm">
               {order.items.map((it) => (
                 <div key={it.id} className="py-3 flex justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[#182333] font-medium">
+                    <p className="text-[var(--rm-ink)] font-medium">
                       <strong className="tabular-nums">{it.quantity}×</strong>{' '}
                       {it.name}
                     </p>
-                    <p className="text-[11px] text-[#64748B] mt-0.5">
+                    <p className="text-[11px] text-[var(--rm-ink-muted)] mt-0.5">
                       {it.station === 'BAR'
                         ? t('common.bar')
                         : t('common.kitchen')}{' '}
@@ -494,24 +518,24 @@ export function QrOrderTrackingPage() {
                             : it.prep_status === 'READY' ||
                                 it.prep_status === 'PREPARING'
                               ? 'text-[#FF8738] font-semibold'
-                              : 'text-[#64748B]'
+                              : 'text-[var(--rm-ink-muted)]'
                         }
                       >
                         {getDeliveryStatusLabel(it.prep_status)}
                       </span>
                     </p>
                     {it.options_summary && (
-                      <p className="text-xs text-[#64748B] mt-0.5">
+                      <p className="text-xs text-[var(--rm-ink-muted)] mt-0.5">
                         {it.options_summary}
                       </p>
                     )}
                     {it.notes && (
-                      <p className="text-[11px] text-[#64748B] italic mt-0.5">
+                      <p className="text-[11px] text-[var(--rm-ink-muted)] italic mt-0.5">
                         {t('common.note')} : {it.notes}
                       </p>
                     )}
                   </div>
-                  <span className="tabular-nums font-semibold text-[#182333] shrink-0">
+                  <span className="tabular-nums font-semibold text-[var(--rm-ink)] shrink-0">
                     {formatFcfa(it.line_total_xof)}
                   </span>
                 </div>
@@ -519,26 +543,26 @@ export function QrOrderTrackingPage() {
             </div>
 
             {order.notes && (
-              <div className="p-3 rounded-xl bg-[#F5F7FA] text-xs text-[#64748B]">
+              <div className="p-3 rounded-xl bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 {t('customer.instructionPrefix', { text: order.notes })}
               </div>
             )}
 
-            <div className="pt-3 border-t border-slate-200 space-y-1.5">
-              <div className="flex justify-between font-extrabold text-[#182333]">
+            <div className="pt-3 border-t border-[var(--rm-border)] space-y-1.5">
+              <div className="flex justify-between font-extrabold text-[var(--rm-ink)]">
                 <span>{t('common.totalTtc')}</span>
                 <span className="tabular-nums">
                   {formatFcfa(order.totalXof)}
                 </span>
               </div>
-              <div className="flex justify-between text-xs text-[#64748B]">
+              <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                 <span>{t('customer.alreadyPaidLabel')}</span>
                 <span className="tabular-nums font-semibold text-[#14B8A6]">
                   {formatFcfa(order.paidXof)}
                 </span>
               </div>
               {remainingXof > 0 && !isCancelled && (
-                <div className="flex justify-between text-xs text-[#64748B]">
+                <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                   <span>{t('customer.remainingAtTableLabel')}</span>
                   <span className="tabular-nums font-semibold text-[#FF8738]">
                     {formatFcfa(remainingXof)}
@@ -552,11 +576,11 @@ export function QrOrderTrackingPage() {
 
       {/* Mobile & Desktop Thumb-Zone Bottom CTA */}
       {token && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200">
+        <div className="fixed bottom-0 left-0 right-0 z-30 p-3 bg-[var(--rm-surface)]/95 backdrop-blur-md border-t border-[var(--rm-border)]">
           <div className="max-w-5xl mx-auto">
             <Link
               to={`/q/${encodeURIComponent(token)}`}
-              className="w-full h-12 rounded-xl bg-[#182333] hover:bg-[#223044] text-white text-sm font-bold flex items-center justify-center"
+              className="w-full h-12 rounded-xl bg-[#182333] hover:bg-[#223044] dark:bg-[#FF8738] dark:hover:bg-[#F07322] text-white text-sm font-bold flex items-center justify-center"
             >
               {t('customer.orderMoreBtn')}
             </Link>

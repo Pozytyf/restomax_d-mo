@@ -1,4 +1,5 @@
 import type { Server as HttpServer } from 'node:http';
+import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 
 interface ClientMeta {
@@ -6,7 +7,63 @@ interface ClientMeta {
   room: string;
 }
 
+export interface ClusterEnvelope {
+  originInstanceId: string;
+  room: string;
+  event: string;
+  payload: unknown;
+  timestamp: string;
+}
+
+export type ExternalPubSubPublisher = (envelope: ClusterEnvelope) => Promise<void> | void;
+
+export const INSTANCE_ID =
+  process.env.INSTANCE_ID?.trim() ||
+  `node-${crypto.randomBytes(4).toString('hex')}`;
+
 const clients = new Set<ClientMeta>();
+let externalPublisher: ExternalPubSubPublisher | null = null;
+
+export function registerClusterPublisher(fn: ExternalPubSubPublisher | null): void {
+  externalPublisher = fn;
+}
+
+export function getWebSocketStats() {
+  return {
+    instanceId: INSTANCE_ID,
+    connectedClients: clients.size,
+    pubsubMode: externalPublisher ? 'CLUSTER_PUBSUB' : 'SINGLE_NODE',
+  };
+}
+
+export function deliverLocalRoomEvent(
+  room: string,
+  event: string,
+  payload: unknown,
+  timestamp = new Date().toISOString(),
+): void {
+  const message = JSON.stringify({
+    type: event,
+    payload,
+    timestamp,
+    instanceId: INSTANCE_ID,
+  });
+  for (const client of clients) {
+    if (client.room === room && client.ws.readyState === WebSocket.OPEN) {
+      client.ws.send(message);
+    }
+  }
+}
+
+export function handleIncomingClusterEnvelope(envelope: ClusterEnvelope): void {
+  if (envelope.originInstanceId === INSTANCE_ID) return;
+  deliverLocalRoomEvent(
+    envelope.room,
+    envelope.event,
+    envelope.payload,
+    envelope.timestamp,
+  );
+}
 
 export function setupWebSocketServer(server: HttpServer): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -21,6 +78,7 @@ export function setupWebSocketServer(server: HttpServer): void {
       JSON.stringify({
         type: 'connection:ready',
         room,
+        instanceId: INSTANCE_ID,
         timestamp: new Date().toISOString(),
       }),
     );
@@ -40,18 +98,21 @@ export function broadcastToRoom(
   event: string,
   payload: unknown,
 ): void {
-  const message = JSON.stringify({
-    type: event,
-    payload,
-    timestamp: new Date().toISOString(),
-  });
-  for (const client of clients) {
-    if (
-      client.room === room &&
-      client.ws.readyState === WebSocket.OPEN
-    ) {
-      client.ws.send(message);
-    }
+  const timestamp = new Date().toISOString();
+  deliverLocalRoomEvent(room, event, payload, timestamp);
+
+  if (externalPublisher) {
+    Promise.resolve(
+      externalPublisher({
+        originInstanceId: INSTANCE_ID,
+        room,
+        event,
+        payload,
+        timestamp,
+      }),
+    ).catch(() => {
+      // Non-blocking cluster relay
+    });
   }
 }
 

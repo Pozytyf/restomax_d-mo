@@ -4,14 +4,17 @@ import {
   ArrowRight,
   Clock,
   Minus,
+  Moon,
   Plus,
   Search,
   ShoppingBag,
+  Sun,
   Trash2,
   UtensilsCrossed,
   X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useRestaurantTheme } from '../app/hooks/useRestaurantTheme';
 import { apiFetch } from '../services/api';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ResilientImage } from '../components/ResilientImage';
@@ -95,6 +98,7 @@ function saveStoredOrderId(token: string, orderId: string): void {
 
 export function QrMenuPage() {
   const { t } = useTranslation();
+  const { theme, toggleTheme } = useRestaurantTheme();
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -277,21 +281,21 @@ export function QrMenuPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6">
-        <p className="text-sm text-[#64748B]">{t('customer.verifyingTable')}</p>
+      <div className="min-h-screen bg-[var(--rm-canvas)] flex items-center justify-center p-6">
+        <p className="text-sm text-[var(--rm-ink-muted)]">{t('customer.verifyingTable')}</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-7 text-center space-y-3">
+      <div className="min-h-screen bg-[var(--rm-canvas)] flex items-center justify-center p-6">
+        <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] max-w-md w-full p-7 text-center space-y-3">
           <UtensilsCrossed className="w-8 h-8 text-[#E05252] mx-auto" />
-          <h1 className="text-lg font-bold text-[#182333]">
+          <h1 className="text-lg font-bold text-[var(--rm-ink)]">
             {t('customer.qrUnavailable')}
           </h1>
-          <p className="text-sm text-[#64748B]">{error}</p>
+          <p className="text-sm text-[var(--rm-ink-muted)]">{error}</p>
         </div>
       </div>
     );
@@ -311,9 +315,9 @@ export function QrMenuPage() {
     recentOrders.find((o) => o.status !== 'PAID') || recentOrders[0];
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] pb-24">
+    <div className="min-h-screen bg-[var(--rm-canvas)] text-[var(--rm-ink)] pb-24 transition-colors">
       {/* Compact Sticky Top Header */}
-      <header className="sticky top-0 z-30 bg-[#182333] text-white px-4 py-3.5 shadow-sm">
+      <header className="sticky top-0 z-30 bg-[#182333] dark:bg-[#0F172A] border-b border-white/10 text-white px-4 py-3.5 shadow-sm">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-base font-extrabold truncate">
@@ -326,7 +330,27 @@ export function QrMenuPage() {
                 : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              data-testid="qr-theme-toggle"
+              aria-label={
+                theme === 'dark'
+                  ? t('header.enableLightMode')
+                  : t('header.enableDarkMode')
+              }
+              title={
+                theme === 'dark' ? t('header.lightMode') : t('header.darkMode')
+              }
+              className="p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-[#FF8738]" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
             <LanguageSwitcher variant="dark" />
             <span className="hidden sm:inline text-xs font-semibold text-[#FF8738]">
               {t('customer.menuQrBadge')}
@@ -340,14 +364,14 @@ export function QrMenuPage() {
         {activeRecentOrder && token && (
           <Link
             to={`/q/${encodeURIComponent(token)}/suivi/${encodeURIComponent(activeRecentOrder.id)}`}
-            className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-[#14B8A6]/40 p-4 hover:border-[#14B8A6] transition-colors"
+            className="flex items-center justify-between gap-3 bg-[var(--rm-surface)] rounded-2xl border border-[#14B8A6]/40 p-4 hover:border-[#14B8A6] transition-colors"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#14B8A6]/10 text-[#14B8A6] flex items-center justify-center shrink-0">
                 <Clock className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-[#182333] truncate">
+                <p className="text-xs font-bold text-[var(--rm-ink)] truncate">
                   {t('customer.trackingLinkTitle', {
                     orderNumber: activeRecentOrder.orderNumber,
                   })}
@@ -355,27 +379,27 @@ export function QrMenuPage() {
                     {getDeliveryStatusLabel(activeRecentOrder.status)}
                   </span>
                 </p>
-                <p className="text-[11px] text-[#64748B]">
+                <p className="text-[11px] text-[var(--rm-ink-muted)]">
                   {t('customer.trackingLinkDesc', {
                     amount: formatFcfa(activeRecentOrder.totalXof),
                   })}
                 </p>
               </div>
             </div>
-            <ArrowRight className="w-4 h-4 text-[#182333] shrink-0" />
+            <ArrowRight className="w-4 h-4 text-[var(--rm-ink)] shrink-0" />
           </Link>
         )}
 
         {/* Search + Category Scroller */}
         <div className="space-y-3">
           <div className="relative">
-            <Search className="w-4 h-4 text-[#64748B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[var(--rm-ink-muted)] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="search"
               placeholder={t('customer.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-[#182333] focus:outline-none focus:ring-2 focus:ring-[#FF8738]"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--rm-surface)] border border-[var(--rm-border)] text-xs text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] focus:outline-none focus:ring-2 focus:ring-[#FF8738]"
             />
           </div>
 
@@ -385,8 +409,8 @@ export function QrMenuPage() {
               onClick={() => setActiveCat('ALL')}
               className={`px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
                 activeCat === 'ALL'
-                  ? 'bg-[#182333] text-white'
-                  : 'bg-white border border-slate-200 text-[#64748B]'
+                  ? 'bg-[#182333] dark:bg-[#FF8738] text-white'
+                  : 'bg-[var(--rm-surface)] border border-[var(--rm-border)] text-[var(--rm-ink-muted)]'
               }`}
             >
               {t('customer.allMenuCount', { count: data.items.length })}
@@ -398,8 +422,8 @@ export function QrMenuPage() {
                 onClick={() => setActiveCat(c.id)}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
                   activeCat === c.id
-                    ? 'bg-[#182333] text-white'
-                    : 'bg-white border border-slate-200 text-[#64748B]'
+                    ? 'bg-[#182333] dark:bg-[#FF8738] text-white'
+                    : 'bg-[var(--rm-surface)] border border-[var(--rm-border)] text-[var(--rm-ink-muted)]'
                 }`}
               >
                 {c.name}
@@ -410,12 +434,12 @@ export function QrMenuPage() {
 
         {/* Menu Grid or Empty State */}
         {visibleItems.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-2">
-            <UtensilsCrossed className="w-7 h-7 text-[#64748B] mx-auto" />
-            <p className="text-sm font-bold text-[#182333]">
+          <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] p-8 text-center space-y-2">
+            <UtensilsCrossed className="w-7 h-7 text-[var(--rm-ink-muted)] mx-auto" />
+            <p className="text-sm font-bold text-[var(--rm-ink)]">
               {t('customer.emptyCategoryTitle')}
             </p>
-            <p className="text-xs text-[#64748B]">
+            <p className="text-xs text-[var(--rm-ink-muted)]">
               {data.items.length === 0
                 ? t('customer.emptyMenuPublished')
                 : t('customer.emptyMenuFilter')}
@@ -427,7 +451,7 @@ export function QrMenuPage() {
                   setActiveCat('ALL');
                   setSearchQuery('');
                 }}
-                className="mt-2 px-4 py-2 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+                className="mt-2 px-4 py-2 rounded-lg bg-[#182333] dark:bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
               >
                 {t('customer.showAllMenu')}
               </button>
@@ -438,7 +462,7 @@ export function QrMenuPage() {
             {visibleItems.map((it) => (
               <div
                 key={it.id}
-                className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col justify-between"
+                className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] overflow-hidden flex flex-col justify-between"
               >
                 <div
                   role="button"
@@ -468,16 +492,16 @@ export function QrMenuPage() {
                   </div>
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <h2 className="text-base font-bold text-[#182333]">
+                      <h2 className="text-base font-bold text-[var(--rm-ink)]">
                         {it.name}
                       </h2>
-                      <span className="text-[11px] font-semibold text-[#64748B] shrink-0">
+                      <span className="text-[11px] font-semibold text-[var(--rm-ink-muted)] shrink-0">
                         {it.station === 'BAR'
                           ? t('common.bar')
                           : t('common.kitchen')}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-[#64748B] leading-relaxed">
+                    <p className="mt-1 text-xs text-[var(--rm-ink-muted)] leading-relaxed">
                       {it.description}
                     </p>
                     {it.options.length > 0 && (
@@ -490,7 +514,7 @@ export function QrMenuPage() {
                   </div>
                 </div>
                 <div className="px-4 pb-4 pt-2 flex items-center justify-between gap-3">
-                  <span className="text-base font-extrabold text-[#182333] tabular-nums">
+                  <span className="text-base font-extrabold text-[var(--rm-ink)] tabular-nums">
                     {formatFcfa(it.priceXof)}
                   </span>
                   <button
@@ -517,15 +541,15 @@ export function QrMenuPage() {
 
       {/* Bottom Sticky Cart Bar (Compact thumb-zone CTA) */}
       {totalCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200">
+        <div className="fixed bottom-0 left-0 right-0 z-30 p-3 bg-[var(--rm-surface)]/95 backdrop-blur-md border-t border-[var(--rm-border)]">
           <div className="max-w-4xl mx-auto">
             <button
               type="button"
               onClick={() => setCartOpen(true)}
-              className="w-full h-12 rounded-xl bg-[#182333] text-white px-5 flex items-center justify-between text-sm font-bold cursor-pointer"
+              className="w-full h-12 rounded-xl bg-[#182333] dark:bg-[#FF8738] text-white px-5 flex items-center justify-between text-sm font-bold cursor-pointer"
             >
               <span className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-[#FF8738]" />
+                <ShoppingBag className="w-4 h-4 text-[#FF8738] dark:text-white" />
                 <span>{t('customer.viewCart', { count: totalCount })}</span>
               </span>
               <span className="tabular-nums">{formatFcfa(totalXof)}</span>
@@ -537,16 +561,16 @@ export function QrMenuPage() {
       {/* Item Options & Note Modal */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 bg-[#182333]/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-[#0B1220]/70 flex items-end sm:items-center justify-center p-0 sm:p-4"
           onClick={() => setSelectedItem(null)}
         >
           <div
-            className="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-[var(--rm-surface)] border border-[var(--rm-border)] rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-[#182333]">
+                <h3 className="text-lg font-bold text-[var(--rm-ink)]">
                   {selectedItem.name}
                 </h3>
                 <p className="text-sm font-bold text-[#FF8738] tabular-nums">
@@ -557,27 +581,27 @@ export function QrMenuPage() {
                 type="button"
                 aria-label={t('common.close')}
                 onClick={() => setSelectedItem(null)}
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#182333] cursor-pointer"
+                className="p-1.5 rounded-lg text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {selectedItem.description && (
-              <p className="text-xs text-[#64748B] leading-relaxed">
+              <p className="text-xs text-[var(--rm-ink-muted)] leading-relaxed">
                 {selectedItem.description}
               </p>
             )}
 
             {selectedItem.options.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-[#182333]">
+                <p className="text-xs font-semibold text-[var(--rm-ink)]">
                   {t('customer.optionsAndExtras')}
                 </p>
                 {selectedItem.options.map((opt) => (
                   <label
                     key={opt.id}
-                    className="flex items-center justify-between p-3 rounded-xl border border-slate-200 text-xs cursor-pointer"
+                    className="flex items-center justify-between p-3 rounded-xl border border-[var(--rm-border)] text-xs cursor-pointer"
                   >
                     <span className="flex items-center gap-2">
                       <input
@@ -593,11 +617,11 @@ export function QrMenuPage() {
                           }
                         }}
                       />
-                      <span className="font-medium text-[#182333]">
+                      <span className="font-medium text-[var(--rm-ink)]">
                         {opt.label}
                       </span>
                     </span>
-                    <span className="font-semibold tabular-nums text-[#64748B]">
+                    <span className="font-semibold tabular-nums text-[var(--rm-ink-muted)]">
                       {opt.priceDeltaXof > 0
                         ? `+${formatFcfa(opt.priceDeltaXof)}`
                         : t('common.included')}
@@ -612,7 +636,7 @@ export function QrMenuPage() {
               placeholder={t('customer.specialInstructionPlaceholder')}
               value={itemNote}
               onChange={(e) => setItemNote(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs"
+              className="w-full px-3 py-2.5 rounded-xl border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
             />
 
             <button
@@ -631,42 +655,42 @@ export function QrMenuPage() {
       {/* Cart Checkout Bottom Sheet */}
       {cartOpen && (
         <div
-          className="fixed inset-0 z-50 bg-[#182333]/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-[#0B1220]/70 flex items-end sm:items-center justify-center p-0 sm:p-4"
           onClick={() => setCartOpen(false)}
         >
           <div
-            className="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-[var(--rm-surface)] border border-[var(--rm-border)] rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-[#182333]">
+              <h3 className="text-lg font-bold text-[var(--rm-ink)]">
                 {t('customer.yourOrderTitle', { table: data.table.label })}
               </h3>
               <button
                 type="button"
                 aria-label={t('common.close')}
                 onClick={() => setCartOpen(false)}
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#182333] cursor-pointer"
+                className="p-1.5 rounded-lg text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-[var(--rm-border-subtle)]">
               {cart.map((c) => (
                 <div
                   key={c.key}
                   className="py-3 flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#182333]">
+                    <p className="text-sm font-semibold text-[var(--rm-ink)]">
                       {c.item.name}
                     </p>
                     {c.optionsLabel && (
-                      <p className="text-xs text-[#64748B]">{c.optionsLabel}</p>
+                      <p className="text-xs text-[var(--rm-ink-muted)]">{c.optionsLabel}</p>
                     )}
                     {c.notes && (
-                      <p className="text-[11px] text-[#64748B] italic">
+                      <p className="text-[11px] text-[var(--rm-ink-muted)] italic">
                         {t('common.note')} : {c.notes}
                       </p>
                     )}
@@ -681,18 +705,18 @@ export function QrMenuPage() {
                       type="button"
                       aria-label={t('customer.decreaseQty')}
                       onClick={() => updateCartQty(c.key, -1)}
-                      className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center cursor-pointer"
+                      className="w-9 h-9 rounded-lg border border-[var(--rm-border)] text-[var(--rm-ink)] flex items-center justify-center cursor-pointer"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="w-5 text-center text-sm font-bold tabular-nums">
+                    <span className="w-5 text-center text-sm font-bold text-[var(--rm-ink)] tabular-nums">
                       {c.quantity}
                     </span>
                     <button
                       type="button"
                       aria-label={t('customer.increaseQty')}
                       onClick={() => updateCartQty(c.key, 1)}
-                      className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center cursor-pointer"
+                      className="w-9 h-9 rounded-lg border border-[var(--rm-border)] text-[var(--rm-ink)] flex items-center justify-center cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -700,7 +724,7 @@ export function QrMenuPage() {
                       type="button"
                       aria-label={t('common.delete')}
                       onClick={() => removeCartEntry(c.key)}
-                      className="w-8 h-9 rounded-lg text-[#64748B] hover:text-[#E05252] flex items-center justify-center cursor-pointer"
+                      className="w-8 h-9 rounded-lg text-[var(--rm-ink-muted)] hover:text-[#E05252] flex items-center justify-center cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -715,18 +739,18 @@ export function QrMenuPage() {
                 placeholder={t('customer.firstNamePlaceholder')}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs"
+                className="w-full px-3 py-2.5 rounded-xl border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
               />
               <textarea
                 rows={2}
                 placeholder={t('customer.kitchenCommentPlaceholder')}
                 value={orderNotes}
                 onChange={(e) => setOrderNotes(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs"
+                className="w-full px-3 py-2.5 rounded-xl border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-base font-extrabold text-[#182333]">
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--rm-border)] text-base font-extrabold text-[var(--rm-ink)]">
               <span>{t('customer.totalToPay')}</span>
               <span className="tabular-nums">{formatFcfa(totalXof)}</span>
             </div>

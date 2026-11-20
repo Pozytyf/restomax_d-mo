@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, BellRing, Mail, Plus, Settings2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  BellRing,
+  Mail,
+  Plus,
+  Send,
+  Settings2,
+} from 'lucide-react';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { apiFetch } from '../../services/api';
@@ -21,13 +28,6 @@ interface MovementRow {
   createdAt: string;
 }
 
-const EMAIL_STATUS_LABELS: Record<string, string> = {
-  SENT: 'E-mail envoyé',
-  QUEUED_NO_SMTP: 'Prêt (SMTP non configuré)',
-  SKIPPED: 'E-mail désactivé',
-  FAILED: 'Échec SMTP',
-};
-
 export function StocksPage() {
   const { t } = useTranslation();
   const { notify } = useToast();
@@ -39,11 +39,13 @@ export function StocksPage() {
   const [alertSettings, setAlertSettings] = useState<StockAlertSettings | null>(
     null,
   );
+  const [smtpPassInput, setSmtpPassInput] = useState('');
   const [recentAlerts, setRecentAlerts] = useState<RestaurantNotification[]>([]);
 
   const [showAdd, setShowAdd] = useState(false);
   const [showAlertConfig, setShowAlertConfig] = useState(false);
   const [savingAlerts, setSavingAlerts] = useState(false);
+  const [testingSmtp, setTestingSmtp] = useState(false);
 
   const [newStock, setNewStock] = useState({
     name: '',
@@ -57,7 +59,7 @@ export function StocksPage() {
   const [moveForm, setMoveForm] = useState({
     movementType: 'IN',
     quantity: 5,
-    reason: 'Approvisionnement fournisseur',
+    reason: '',
   });
 
   const load = useCallback(() => {
@@ -92,14 +94,14 @@ export function StocksPage() {
       });
       notify(
         newStock.quantity <= newStock.minThreshold
-          ? 'Ingrédient créé sous le seuil critique : alerte automatique déclenchée.'
-          : 'Article de stock créé.',
+          ? t('stocks.createdCriticalToast')
+          : t('stocks.createdSuccessToast'),
         newStock.quantity <= newStock.minThreshold ? 'info' : 'success',
       );
       setShowAdd(false);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -111,20 +113,50 @@ export function StocksPage() {
         `/api/restaurant/stocks/${moveTarget.id}/move`,
         {
           method: 'POST',
-          body: JSON.stringify(moveForm),
+          body: JSON.stringify({
+            ...moveForm,
+            reason: moveForm.reason || t('stocks.moveDefaultReason'),
+          }),
         },
       );
       notify(
         res.alertTriggered
-          ? `Mouvement enregistré. Alerte critique envoyée pour ${moveTarget.name} !`
-          : 'Mouvement de stock enregistré.',
+          ? t('stocks.moveCriticalToast', { name: moveTarget.name })
+          : t('stocks.moveSuccessToast'),
         res.alertTriggered ? 'info' : 'success',
       );
       setMoveTarget(null);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
+  };
+
+  const persistAlertSettings = async () => {
+    if (!alertSettings) return null;
+    const payload: Record<string, unknown> = {
+      inAppEnabled: alertSettings.inAppEnabled,
+      emailEnabled: alertSettings.emailEnabled,
+      recipientEmails: alertSettings.recipientEmails,
+      smtpHost: alertSettings.smtpHost || '',
+      smtpPort: alertSettings.smtpPort || 587,
+      smtpSecure: Boolean(alertSettings.smtpSecure),
+      smtpUser: alertSettings.smtpUser || '',
+      smtpFrom: alertSettings.smtpFrom || '',
+    };
+    if (smtpPassInput.trim().length > 0) {
+      payload.smtpPass = smtpPassInput;
+    }
+    const res = await apiFetch<{ settings: StockAlertSettings }>(
+      '/api/restaurant/stocks/alerts/config',
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+    setAlertSettings(res.settings);
+    setSmtpPassInput('');
+    return res.settings;
   };
 
   const handleSaveAlertConfig = async (e: React.FormEvent) => {
@@ -132,24 +164,48 @@ export function StocksPage() {
     if (!alertSettings) return;
     setSavingAlerts(true);
     try {
-      const res = await apiFetch<{ settings: StockAlertSettings }>(
-        '/api/restaurant/stocks/alerts/config',
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            inAppEnabled: alertSettings.inAppEnabled,
-            emailEnabled: alertSettings.emailEnabled,
-            recipientEmails: alertSettings.recipientEmails,
-          }),
-        },
-      );
-      setAlertSettings(res.settings);
-      notify('Paramètres d’alertes automatiques enregistrés.', 'success');
+      await persistAlertSettings();
+      notify(t('stocks.alertsSavedToast'), 'success');
       setShowAlertConfig(false);
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     } finally {
       setSavingAlerts(false);
+    }
+  };
+
+  const handleTestSmtpEmail = async () => {
+    if (!alertSettings) return;
+    setTestingSmtp(true);
+    try {
+      await persistAlertSettings();
+      const res = await apiFetch<{
+        dispatched: boolean;
+        status: string;
+        recipients: string[];
+      }>('/api/restaurant/stocks/alerts/test-email', {
+        method: 'POST',
+      });
+      if (res.dispatched) {
+        notify(
+          t('stocks.testEmailSentToast', {
+            recipients: res.recipients.join(', '),
+          }),
+          'success',
+        );
+      } else if (res.status === 'QUEUED_NO_SMTP') {
+        notify(t('stocks.testEmailQueuedToast'), 'info');
+      } else {
+        notify(t('stocks.testEmailErrorToast'), 'error');
+      }
+      load();
+    } catch (err) {
+      notify(
+        err instanceof Error ? err.message : t('stocks.testEmailErrorToast'),
+        'error',
+      );
+    } finally {
+      setTestingSmtp(false);
     }
   };
 
@@ -161,13 +217,19 @@ export function StocksPage() {
       }>(`/api/restaurant/stocks/${st.id}/alert-test`, {
         method: 'POST',
       });
+      const translatedStatus = t(`stocks.emailStatuses.${res.emailStatus}`, {
+        defaultValue: res.emailStatus,
+      });
       notify(
-        `Alerte de réapprovisionnement déclenchée pour ${st.name} (${EMAIL_STATUS_LABELS[res.emailStatus] || res.emailStatus}).`,
+        t('stocks.manualAlertToast', {
+          name: st.name,
+          status: translatedStatus,
+        }),
         'success',
       );
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -209,10 +271,14 @@ export function StocksPage() {
               <AlertTriangle className="w-5 h-5 text-[#E05252] shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-bold text-[var(--rm-ink)]">
-                  {criticalItems.length} ingrédient(s) sous le seuil critique de réapprovisionnement
+                  {t('stocks.criticalBannerTitle', {
+                    count: criticalItems.length,
+                  })}
                 </p>
                 <p className="text-xs text-[var(--rm-ink-muted)] mt-0.5">
-                  {criticalItems.map((c) => `${c.name} (${c.quantity} ${c.unit})`).join(' · ')}
+                  {criticalItems
+                    .map((c) => `${c.name} (${c.quantity} ${c.unit})`)
+                    .join(' · ')}
                 </p>
               </div>
             </div>
@@ -220,11 +286,19 @@ export function StocksPage() {
               <div className="flex items-center gap-3 text-xs text-[var(--rm-ink)] shrink-0">
                 <span className="inline-flex items-center gap-1 font-medium">
                   <BellRing className="w-3.5 h-3.5 text-[#FF8738]" />
-                  In-app : {alertSettings.inAppEnabled ? 'Actif' : 'Inactif'}
+                  {t('stocks.inAppStatus', {
+                    state: alertSettings.inAppEnabled
+                      ? t('stocks.activeState')
+                      : t('stocks.inactiveState'),
+                  })}
                 </span>
                 <span className="inline-flex items-center gap-1 font-medium">
                   <Mail className="w-3.5 h-3.5 text-[#14B8A6]" />
-                  E-mail : {alertSettings.emailEnabled ? 'Actif' : 'Inactif'}
+                  {t('stocks.emailStatus', {
+                    state: alertSettings.emailEnabled
+                      ? t('stocks.activeState')
+                      : t('stocks.inactiveState'),
+                  })}
                 </span>
               </div>
             )}
@@ -234,15 +308,15 @@ export function StocksPage() {
         {showAlertConfig && alertSettings && canWriteStocks && (
           <form
             onSubmit={handleSaveAlertConfig}
-            className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 space-y-4"
+            className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 space-y-5"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-sm font-bold text-[var(--rm-ink)]">
-                  Configuration des alertes automatiques de réapprovisionnement
+                  {t('stocks.configTitle')}
                 </h2>
                 <p className="text-xs text-[var(--rm-ink-muted)] mt-0.5">
-                  Déclenchement automatique dès qu’un mouvement ou ajout fait passer un ingrédient sous son seuil minimal.
+                  {t('stocks.configSubtitle')}
                 </p>
               </div>
             </div>
@@ -262,10 +336,10 @@ export function StocksPage() {
                 />
                 <div className="text-xs">
                   <p className="font-bold text-[var(--rm-ink)]">
-                    Notifications in-app temps réel
+                    {t('stocks.inAppLabel')}
                   </p>
                   <p className="text-[var(--rm-ink-muted)] mt-0.5">
-                    Affiche une alerte persistante dans la cloche et met à jour le tableau en direct.
+                    {t('stocks.inAppDesc')}
                   </p>
                 </div>
               </label>
@@ -284,17 +358,17 @@ export function StocksPage() {
                 />
                 <div className="text-xs">
                   <p className="font-bold text-[var(--rm-ink)]">
-                    Notifications par e-mail
+                    {t('stocks.emailLabel')}
                   </p>
                   <p className="text-[var(--rm-ink-muted)] mt-0.5">
-                    Envoie un e-mail récapitulatif aux gestionnaires dès qu’un seuil est franchi.
+                    {t('stocks.emailDesc')}
                   </p>
                 </div>
               </label>
 
               <div>
                 <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                  Destinataires e-mail (optionnel, séparés par virgule)
+                  {t('stocks.recipientsLabel')}
                 </label>
                 <input
                   type="text"
@@ -312,28 +386,164 @@ export function StocksPage() {
                   className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
                 <p className="text-[11px] text-[var(--rm-ink-muted)] mt-1">
-                  Par défaut (si vide) :{' '}
-                  {alertSettings.resolvedRecipients.length > 0
-                    ? alertSettings.resolvedRecipients.join(', ')
-                    : 'Propriétaire & Managers actifs'}
+                  {t('stocks.defaultRecipientsHint', {
+                    list:
+                      alertSettings.resolvedRecipients.length > 0
+                        ? alertSettings.resolvedRecipients.join(', ')
+                        : t('stocks.defaultManagersFallback'),
+                  })}
                 </p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            {/* Production SMTP Settings */}
+            <div className="pt-4 border-t border-[var(--rm-border-subtle)] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-bold text-[var(--rm-ink)]">
+                  {t('stocks.smtpSectionTitle')}
+                </h3>
+                <span
+                  className={`text-[11px] font-semibold ${
+                    alertSettings.envSmtpConfigured
+                      ? 'text-[#14B8A6]'
+                      : 'text-[var(--rm-ink-muted)]'
+                  }`}
+                >
+                  {alertSettings.envSmtpConfigured
+                    ? t('stocks.smtpEnvActiveChip')
+                    : t('stocks.smtpEnvMissingChip')}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+                <div className="lg:col-span-2">
+                  <label className="block text-[11px] font-semibold text-[var(--rm-ink)] mb-1">
+                    {t('stocks.smtpHostLabel')}
+                  </label>
+                  <input
+                    type="text"
+                    value={alertSettings.smtpHost || ''}
+                    onChange={(e) =>
+                      setAlertSettings({
+                        ...alertSettings,
+                        smtpHost: e.target.value,
+                      })
+                    }
+                    placeholder="smtp.example.com"
+                    className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--rm-ink)] mb-1">
+                    {t('stocks.smtpPortLabel')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={alertSettings.smtpPort ?? 587}
+                    onChange={(e) =>
+                      setAlertSettings({
+                        ...alertSettings,
+                        smtpPort: Number(e.target.value) || 587,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-xs tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--rm-ink)] mb-1">
+                    {t('stocks.smtpUserLabel')}
+                  </label>
+                  <input
+                    type="text"
+                    value={alertSettings.smtpUser || ''}
+                    onChange={(e) =>
+                      setAlertSettings({
+                        ...alertSettings,
+                        smtpUser: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--rm-ink)] mb-1">
+                    {t('stocks.smtpPassLabel')}
+                  </label>
+                  <input
+                    type="password"
+                    value={smtpPassInput}
+                    onChange={(e) => setSmtpPassInput(e.target.value)}
+                    placeholder={
+                      alertSettings.smtpPassConfigured
+                        ? t('stocks.smtpPassConfiguredPlaceholder')
+                        : '••••••••'
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--rm-ink)] mb-1">
+                    {t('stocks.smtpFromLabel')}
+                  </label>
+                  <input
+                    type="text"
+                    value={alertSettings.smtpFrom || ''}
+                    onChange={(e) =>
+                      setAlertSettings({
+                        ...alertSettings,
+                        smtpFrom: e.target.value,
+                      })
+                    }
+                    placeholder="Resto’MAX <alerts@restaurant.ci>"
+                    className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-xs"
+                  />
+                </div>
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-xs text-[var(--rm-ink)] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(alertSettings.smtpSecure)}
+                  onChange={(e) =>
+                    setAlertSettings({
+                      ...alertSettings,
+                      smtpSecure: e.target.checked,
+                    })
+                  }
+                />
+                <span>{t('stocks.smtpSecureLabel')}</span>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={testingSmtp}
+                onClick={() => void handleTestSmtpEmail()}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[var(--rm-border)] text-[var(--rm-ink)] hover:border-[#FF8738] text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5 text-[#FF8738]" />
+                <span>
+                  {testingSmtp
+                    ? t('stocks.testingSmtpBtn')
+                    : t('stocks.testSmtpBtn')}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowAlertConfig(false)}
                 className="px-4 py-2 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold cursor-pointer"
               >
-                Fermer
+                {t('common.close')}
               </button>
               <button
                 type="submit"
                 disabled={savingAlerts}
                 className="px-4 py-2 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
               >
-                Enregistrer la configuration
+                {t('stocks.saveConfigBtn')}
               </button>
             </div>
           </form>
@@ -346,7 +556,7 @@ export function StocksPage() {
           >
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Nom
+                {t('stocks.nameLabel')}
               </label>
               <input
                 required
@@ -360,7 +570,7 @@ export function StocksPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Unité
+                {t('stocks.unitLabel')}
               </label>
               <input
                 required
@@ -374,7 +584,7 @@ export function StocksPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Quantité init.
+                {t('stocks.initQtyLabel')}
               </label>
               <input
                 required
@@ -389,7 +599,7 @@ export function StocksPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Seuil alerte
+                {t('stocks.thresholdLabel')}
               </label>
               <input
                 required
@@ -407,7 +617,7 @@ export function StocksPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Fournisseur
+                {t('stocks.supplierLabel')}
               </label>
               <input
                 type="text"
@@ -422,7 +632,7 @@ export function StocksPage() {
               type="submit"
               className="py-2.5 px-4 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
-              Ajouter
+              {t('common.add')}
             </button>
           </form>
         )}
@@ -432,19 +642,23 @@ export function StocksPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Ingrédient</th>
-                  <th className="px-5 py-3 font-semibold">Fournisseur</th>
-                  <th className="px-5 py-3 font-semibold text-right">
-                    Stock actuel
+                  <th className="px-5 py-3 font-semibold">
+                    {t('stocks.colIngredient')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('stocks.colSupplier')}
                   </th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Seuil min
+                    {t('stocks.colCurrentStock')}
                   </th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Coût unitaire
+                    {t('stocks.colMinThreshold')}
                   </th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Actions
+                    {t('stocks.colUnitCost')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('stocks.colActions')}
                   </th>
                 </tr>
               </thead>
@@ -456,11 +670,21 @@ export function StocksPage() {
                       key={st.id}
                       className="hover:bg-[var(--rm-surface-hover)] transition-colors"
                     >
-                      <td className="px-5 py-3 font-semibold text-[var(--rm-ink)] flex items-center gap-2">
-                        {critical && (
-                          <AlertTriangle className="w-4 h-4 text-[#E05252] shrink-0" />
-                        )}
-                        <span>{st.name}</span>
+                      <td className="px-5 py-3 font-semibold text-[var(--rm-ink)]">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {critical && (
+                            <AlertTriangle className="w-4 h-4 text-[#E05252] shrink-0" />
+                          )}
+                          <span>{st.name}</span>
+                          {(st.usedInRecipesCount ?? 0) > 0 && (
+                            <span className="text-[11px] font-semibold text-[#14B8A6]">
+                              ·{' '}
+                              {t('stocks.recipesBadge', {
+                                count: st.usedInRecipesCount,
+                              })}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3 text-xs text-[var(--rm-ink-muted)]">
                         {st.supplierName || '—'}
@@ -485,7 +709,7 @@ export function StocksPage() {
                             onClick={() => handleManualAlert(st)}
                             className="text-xs font-semibold text-[var(--rm-ink)] hover:text-[#FF8738] cursor-pointer"
                           >
-                            Notifier
+                            {t('stocks.notifyBtn')}
                           </button>
                         )}
                         {canWriteStocks && (
@@ -494,7 +718,7 @@ export function StocksPage() {
                             onClick={() => setMoveTarget(st)}
                             className="text-xs font-semibold text-[#FF8738] hover:underline cursor-pointer"
                           >
-                            Entrée / Sortie
+                            {t('stocks.moveBtn')}
                           </button>
                         )}
                       </td>
@@ -510,29 +734,34 @@ export function StocksPage() {
           {/* Recent Stock Movements */}
           <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
             <h2 className="text-base font-bold text-[var(--rm-ink)] mb-4">
-              Derniers mouvements de stock
+              {t('stocks.recentMovementsTitle')}
             </h2>
             {movements.length === 0 ? (
               <p className="text-xs text-[var(--rm-ink-muted)]">
-                Aucun mouvement récent.
+                {t('stocks.noMovementsYet')}
               </p>
             ) : (
               <div className="space-y-2 text-xs">
                 {movements.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center justify-between py-2 border-b border-[var(--rm-border-subtle)] last:border-0"
+                    className="flex items-center justify-between py-2 border-b border-[var(--rm-border-subtle)] last:border-0 gap-2"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <span className="font-semibold text-[var(--rm-ink)]">
                         {m.stockName}
-                      </span>{' '}
+                      </span>
+                      {m.movementType === 'AUTO_ORDER' && (
+                        <span className="ml-2 text-[11px] font-semibold text-[#FF8738]">
+                          [{t('stocks.autoOrderBadge')}]
+                        </span>
+                      )}{' '}
                       ·{' '}
                       <span className="text-[var(--rm-ink-muted)]">
                         {m.reason}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 tabular-nums">
+                    <div className="flex items-center gap-4 tabular-nums shrink-0">
                       <span
                         className={`font-bold ${
                           m.quantityDelta >= 0
@@ -557,11 +786,11 @@ export function StocksPage() {
           {/* Automated Stock Alerts History */}
           <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
             <h2 className="text-base font-bold text-[var(--rm-ink)] mb-4">
-              Alertes automatiques déclenchées
+              {t('stocks.recentAlertsTitle')}
             </h2>
             {recentAlerts.length === 0 ? (
               <p className="text-xs text-[var(--rm-ink-muted)]">
-                Aucune alerte critique déclenchée pour le moment.
+                {t('stocks.noAlertsYet')}
               </p>
             ) : (
               <div className="space-y-2.5 text-xs">
@@ -581,7 +810,9 @@ export function StocksPage() {
                     <p className="text-[var(--rm-ink-muted)]">{al.message}</p>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
                       <span className="text-[var(--rm-ink)] font-medium">
-                        {EMAIL_STATUS_LABELS[al.emailStatus] || al.emailStatus}
+                        {t(`stocks.emailStatuses.${al.emailStatus}`, {
+                          defaultValue: al.emailStatus,
+                        })}
                         {al.emailRecipients ? ` → ${al.emailRecipients}` : ''}
                       </span>
                       <span
@@ -591,7 +822,9 @@ export function StocksPage() {
                             : 'font-semibold text-[#FF8738]'
                         }
                       >
-                        {al.isRead ? 'Lue' : 'Non lue'}
+                        {al.isRead
+                          ? t('stocks.readState')
+                          : t('stocks.unreadState')}
                       </span>
                     </div>
                   </div>
@@ -609,11 +842,11 @@ export function StocksPage() {
             className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] max-w-md w-full p-6 space-y-4"
           >
             <h3 className="text-lg font-bold text-[var(--rm-ink)]">
-              Mouvement : {moveTarget.name}
+              {t('stocks.moveModalTitle', { name: moveTarget.name })}
             </h3>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Type
+                {t('stocks.moveTypeLabel')}
               </label>
               <select
                 value={moveForm.movementType}
@@ -622,15 +855,17 @@ export function StocksPage() {
                 }
                 className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
-                <option value="IN">Entrée / Achat (+)</option>
-                <option value="OUT">Sortie cuisine (-)</option>
-                <option value="LOSS">Perte / Casse (-)</option>
-                <option value="INVENTORY">Ajustement inventaire (=)</option>
+                <option value="IN">{t('stocks.moveTypes.IN')}</option>
+                <option value="OUT">{t('stocks.moveTypes.OUT')}</option>
+                <option value="LOSS">{t('stocks.moveTypes.LOSS')}</option>
+                <option value="INVENTORY">
+                  {t('stocks.moveTypes.INVENTORY')}
+                </option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Quantité ({moveTarget.unit})
+                {t('stocks.moveQtyLabel', { unit: moveTarget.unit })}
               </label>
               <input
                 required
@@ -646,10 +881,11 @@ export function StocksPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Motif
+                {t('stocks.moveReasonLabel')}
               </label>
               <input
                 type="text"
+                placeholder={t('stocks.moveDefaultReason')}
                 value={moveForm.reason}
                 onChange={(e) =>
                   setMoveForm({ ...moveForm, reason: e.target.value })
@@ -663,13 +899,13 @@ export function StocksPage() {
                 onClick={() => setMoveTarget(null)}
                 className="flex-1 py-2.5 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold cursor-pointer"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 className="flex-1 py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
               >
-                Valider
+                {t('stocks.validateBtn')}
               </button>
             </div>
           </form>

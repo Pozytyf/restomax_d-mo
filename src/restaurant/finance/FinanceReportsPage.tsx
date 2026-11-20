@@ -7,7 +7,7 @@ import { useToast } from '../../components/Toast';
 import {
   formatDateFr,
   formatFcfa,
-  PAYMENT_METHOD_LABELS,
+  getPaymentMethodLabel,
 } from '../../utils/format';
 import type { PaymentRecord } from '../../types';
 
@@ -37,7 +37,7 @@ export function FinanceReportsPage() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [showExp, setShowExp] = useState(false);
   const [expForm, setExpForm] = useState({
-    category: 'Approvisionnement',
+    category: t('finance.defaultCategory'),
     description: '',
     amountXof: 10000,
   });
@@ -65,12 +65,16 @@ export function FinanceReportsPage() {
         method: 'POST',
         body: JSON.stringify(expForm),
       });
-      notify('Dépense enregistrée.', 'success');
+      notify(t('finance.expenseAddedToast'), 'success');
       setShowExp(false);
-      setExpForm({ category: 'Approvisionnement', description: '', amountXof: 10000 });
+      setExpForm({
+        category: t('finance.defaultCategory'),
+        description: '',
+        amountXof: 10000,
+      });
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -79,10 +83,10 @@ export function FinanceReportsPage() {
       await apiFetch(`/api/restaurant/payments/${id}/refund`, {
         method: 'POST',
       });
-      notify('Paiement remboursé et journalisé.', 'info');
+      notify(t('finance.paymentRefundedToast'), 'info');
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -131,18 +135,20 @@ export function FinanceReportsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
               <p className="text-xs text-[var(--rm-ink-muted)]">
-                Ventes brutes TTC
+                {t('finance.grossSalesLabel')}
               </p>
               <p className="mt-1 text-xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {formatFcfa(data.summary.grossSalesXof)}
               </p>
               <p className="text-xs text-[var(--rm-ink-muted)] mt-1 tabular-nums">
-                TVA incluse : {formatFcfa(data.summary.taxCollectedXof)}
+                {t('finance.vatIncludedLabel', {
+                  amount: formatFcfa(data.summary.taxCollectedXof),
+                })}
               </p>
             </div>
             <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
               <p className="text-xs text-[var(--rm-ink-muted)]">
-                Encaissements réels
+                {t('finance.collectedLabel')}
               </p>
               <p className="mt-1 text-xl font-extrabold text-[#14B8A6] tabular-nums">
                 {formatFcfa(data.summary.collectedXof)}
@@ -150,7 +156,7 @@ export function FinanceReportsPage() {
             </div>
             <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
               <p className="text-xs text-[var(--rm-ink-muted)]">
-                Coût matière & dépenses
+                {t('finance.cogsAndExpensesLabel')}
               </p>
               <p className="mt-1 text-xl font-extrabold text-[#E05252] tabular-nums">
                 {formatFcfa(data.summary.cogsXof + data.summary.expensesXof)}
@@ -158,7 +164,7 @@ export function FinanceReportsPage() {
             </div>
             <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
               <p className="text-xs text-[var(--rm-ink-muted)]">
-                Marge nette estimée
+                {t('finance.netMarginLabel')}
               </p>
               <p className="mt-1 text-xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {formatFcfa(data.summary.netEstimatedMarginXof)}
@@ -173,7 +179,7 @@ export function FinanceReportsPage() {
             >
               <div>
                 <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                  Catégorie
+                  {t('finance.categoryLabel')}
                 </label>
                 <input
                   required
@@ -187,7 +193,7 @@ export function FinanceReportsPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                  Description
+                  {t('finance.descriptionLabel')}
                 </label>
                 <input
                   required
@@ -201,7 +207,7 @@ export function FinanceReportsPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                  Montant (FCFA)
+                  {t('finance.amountLabel')}
                 </label>
                 <input
                   required
@@ -221,7 +227,7 @@ export function FinanceReportsPage() {
                 type="submit"
                 className="py-2.5 px-4 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
               >
-                Ajouter dépense
+                {t('finance.addExpenseBtn')}
               </button>
             </form>
           )}
@@ -229,7 +235,7 @@ export function FinanceReportsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
               <h2 className="text-base font-bold text-[var(--rm-ink)] mb-4">
-                Transactions d’encaissement (Circuit B)
+                {t('finance.transactionsTitle')}
               </h2>
               <div className="space-y-2.5 max-h-80 overflow-y-auto text-xs">
                 {payments.map((p) => (
@@ -239,7 +245,7 @@ export function FinanceReportsPage() {
                   >
                     <div>
                       <p className="font-mono font-bold text-[var(--rm-ink)]">
-                        {p.orderNumber} · {PAYMENT_METHOD_LABELS[p.method]}
+                        {p.orderNumber} · {getPaymentMethodLabel(p.method)}
                       </p>
                       <p className="text-[var(--rm-ink-muted)]">
                         {p.reference} · {p.mode}
@@ -261,7 +267,7 @@ export function FinanceReportsPage() {
                           onClick={() => refundPayment(p.id)}
                           className="text-[#E05252] hover:underline font-semibold cursor-pointer"
                         >
-                          Rembourser
+                          {t('finance.refundBtn')}
                         </button>
                       )}
                     </div>
@@ -272,7 +278,7 @@ export function FinanceReportsPage() {
 
             <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6">
               <h2 className="text-base font-bold text-[var(--rm-ink)] mb-4">
-                Journal des dépenses
+                {t('finance.expensesJournalTitle')}
               </h2>
               <div className="space-y-2.5 max-h-80 overflow-y-auto text-xs">
                 {data.expenses.map((ex) => (

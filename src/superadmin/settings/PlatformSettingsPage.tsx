@@ -22,12 +22,9 @@ export function PlatformSettingsPage() {
         method: 'PATCH',
         body: JSON.stringify(settings),
       });
-      notify(
-        'Paramètres globaux enregistrés et répercutés sur la page Contact.',
-        'success',
-      );
+      notify(t('superadminPages.settings.savedToast'), 'success');
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -35,18 +32,18 @@ export function PlatformSettingsPage() {
     <SuperAdminLayout title={t('superadmin.settingsTitle')}>
       <form
         onSubmit={handleSave}
-        className="bg-white rounded-xl border border-slate-200 p-6 max-w-2xl space-y-4"
+        className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6 max-w-2xl space-y-4"
       >
-        <h2 className="text-base font-bold text-[#182333]">
-          Coordonnées publiques et configuration régionale
+        <h2 className="text-base font-bold text-[var(--rm-ink)]">
+          {t('superadminPages.settings.title')}
         </h2>
-        <p className="text-xs text-[#64748B]">
-          Ces paramètres alimentent directement le site vitrine public Resto’MAX.
+        <p className="text-xs text-[var(--rm-ink-muted)]">
+          {t('superadminPages.settings.subtitle')}
         </p>
 
         <div>
-          <label className="block text-xs font-semibold mb-1">
-            Email commercial public
+          <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+            {t('superadminPages.settings.contactEmailLabel')}
           </label>
           <input
             type="email"
@@ -54,13 +51,13 @@ export function PlatformSettingsPage() {
             onChange={(e) =>
               setSettings({ ...settings, contact_email: e.target.value })
             }
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold mb-1">
-            Téléphone commercial configurable
+          <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+            {t('superadminPages.settings.contactPhoneLabel')}
           </label>
           <input
             type="text"
@@ -68,13 +65,13 @@ export function PlatformSettingsPage() {
             onChange={(e) =>
               setSettings({ ...settings, contact_phone: e.target.value })
             }
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold mb-1">
-            Zone commerciale affichée
+          <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+            {t('superadminPages.settings.regionLabel')}
           </label>
           <input
             type="text"
@@ -82,13 +79,13 @@ export function PlatformSettingsPage() {
             onChange={(e) =>
               setSettings({ ...settings, commercial_region: e.target.value })
             }
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold mb-1">
-            Durée d’essai par défaut (jours)
+          <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
+            {t('superadminPages.settings.trialDaysLabel')}
           </label>
           <input
             type="number"
@@ -96,7 +93,7 @@ export function PlatformSettingsPage() {
             onChange={(e) =>
               setSettings({ ...settings, default_trial_days: e.target.value })
             }
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm tabular-nums"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] text-sm tabular-nums"
           />
         </div>
 
@@ -104,7 +101,7 @@ export function PlatformSettingsPage() {
           type="submit"
           className="px-5 py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
         >
-          Enregistrer la configuration
+          {t('superadminPages.settings.saveBtn')}
         </button>
       </form>
     </SuperAdminLayout>

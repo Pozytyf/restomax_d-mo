@@ -76,9 +76,9 @@ export const publicController = {
     }
   },
 
-  submitQrOrder(req: Request, res: Response) {
+  async submitQrOrder(req: Request, res: Response) {
     try {
-      const result = publicService.submitQrOrder(
+      const result = await publicService.submitQrOrder(
         String(req.params.token),
         req.body || {},
       );

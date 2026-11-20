@@ -5,6 +5,8 @@ import { authRouter } from './routes/auth.ts';
 import { restaurantRouter } from './routes/restaurant.ts';
 import { superAdminRouter } from './routes/superadmin.ts';
 
+import { getWebSocketStats } from './ws.ts';
+
 export function createExpressApp() {
   const app = express();
   app.set('trust proxy', 1);
@@ -12,9 +14,19 @@ export function createExpressApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
-  // Healthcheck
+  // Healthcheck (single & multi-instance readiness)
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'restomax', timezone: 'Africa/Abidjan' });
+    const dbClient = (process.env.DATABASE_CLIENT || 'sqlite').toLowerCase();
+    const wsStats = getWebSocketStats();
+    res.json({
+      status: 'ok',
+      service: 'restomax',
+      timezone: 'Africa/Abidjan',
+      dbClient,
+      instanceId: wsStats.instanceId,
+      pubsubMode: wsStats.pubsubMode,
+      connectedWsClients: wsStats.connectedClients,
+    });
   });
 
   // SEO endpoints: robots.txt & dynamic sitemap.xml

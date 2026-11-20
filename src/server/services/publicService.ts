@@ -4,6 +4,8 @@ import {
   PublicRepository,
   publicRepository,
 } from '../repositories/publicRepository.ts';
+import { restaurantRepository } from '../repositories/restaurantRepository.ts';
+import { restaurantService } from './restaurantService.ts';
 import { broadcastRestaurantEvent } from '../ws.ts';
 import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
@@ -204,7 +206,7 @@ export class PublicService extends BaseService<PublicRepository> {
     };
   }
 
-  submitQrOrder(token: string, body: Record<string, unknown>) {
+  async submitQrOrder(token: string, body: Record<string, unknown>) {
     const { sessionId, customerName, notes, items, idempotencyKey } = body || {};
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -265,22 +267,36 @@ export class PublicService extends BaseService<PublicRepository> {
     const orderCount = publicRepository.countOrdersForRestaurant(restaurantId);
     const orderNumber = `CMD-${1001 + orderCount}`;
 
+    let deductionResult: {
+      deductedCount: number;
+      lowStocksTriggered: Array<{
+        id: string;
+        name: string;
+        quantity: number;
+        minThreshold: number;
+        unit: string;
+        supplierName: string;
+      }>;
+    } = { deductedCount: 0, lowStocksTriggered: [] };
+    let createdTotalXof = 0;
+    let createdLines: Array<{
+      id: string;
+      menuItemId: string;
+      name: string;
+      station: string;
+      unitPriceXof: number;
+      optionsSummary: string;
+      optionsDeltaXof: number;
+      quantity: number;
+      lineTotalXof: number;
+      notes: string;
+    }> = [];
+
     try {
       db.exec('BEGIN IMMEDIATE');
 
       let subtotalXof = 0;
-      const preparedLines: Array<{
-        id: string;
-        menuItemId: string;
-        name: string;
-        station: string;
-        unitPriceXof: number;
-        optionsSummary: string;
-        optionsDeltaXof: number;
-        quantity: number;
-        lineTotalXof: number;
-        notes: string;
-      }> = [];
+      const preparedLines: typeof createdLines = [];
 
       for (const rawLine of items) {
         const line = rawLine as {
@@ -361,32 +377,20 @@ export class PublicService extends BaseService<PublicRepository> {
         lines: preparedLines,
       });
 
-      db.exec('COMMIT');
-
-      broadcastRestaurantEvent(restaurantId, 'order:created', {
-        orderId,
+      deductionResult = restaurantRepository.deductStocksForOrderItems({
+        rid: restaurantId,
         orderNumber,
-        orderType: 'QR_TABLE',
-        tableId,
-        totalXof,
-      });
-      broadcastRestaurantEvent(restaurantId, 'table:updated', {
-        tableId,
-        status: 'OCCUPIED',
+        items: preparedLines.map((l) => ({
+          menuItemId: l.menuItemId,
+          quantity: l.quantity,
+        })),
+        userId: null,
+        now,
       });
 
-      return {
-        deduplicated: false,
-        order: {
-          id: orderId,
-          orderNumber,
-          tableLabel: qrRow.table_label,
-          totalXof,
-          status: 'PENDING',
-          createdAt: now,
-          items: preparedLines,
-        },
-      };
+      db.exec('COMMIT');
+      createdTotalXof = totalXof;
+      createdLines = preparedLines;
     } catch (err) {
       db.exec('ROLLBACK');
       if (err instanceof AppError) {
@@ -394,6 +398,50 @@ export class PublicService extends BaseService<PublicRepository> {
       }
       throw new AppError(500, 'Erreur lors de l’envoi de la commande.');
     }
+
+    if (deductionResult.deductedCount > 0) {
+      broadcastRestaurantEvent(restaurantId, 'stock:updated', {
+        orderId,
+        orderNumber,
+        deductedCount: deductionResult.deductedCount,
+      });
+      for (const low of deductionResult.lowStocksTriggered) {
+        await restaurantService.dispatchCriticalStockAlert({
+          restaurantId,
+          stockId: low.id,
+          stockName: low.name,
+          quantity: low.quantity,
+          minThreshold: low.minThreshold,
+          unit: low.unit,
+          supplierName: low.supplierName,
+        });
+      }
+    }
+
+    broadcastRestaurantEvent(restaurantId, 'order:created', {
+      orderId,
+      orderNumber,
+      orderType: 'QR_TABLE',
+      tableId,
+      totalXof: createdTotalXof,
+    });
+    broadcastRestaurantEvent(restaurantId, 'table:updated', {
+      tableId,
+      status: 'OCCUPIED',
+    });
+
+    return {
+      deduplicated: false,
+      order: {
+        id: orderId,
+        orderNumber,
+        tableLabel: qrRow.table_label,
+        totalXof: createdTotalXof,
+        status: 'PENDING',
+        createdAt: now,
+        items: createdLines,
+      },
+    };
   }
 
   trackQrOrder(token: string, orderId: string) {

@@ -36,12 +36,12 @@ export function CustomersPage() {
         method: 'POST',
         body: JSON.stringify(form),
       });
-      notify('Fiche client créée.', 'success');
+      notify(t('customers.createdToast'), 'success');
       setForm({ fullName: '', phone: '', email: '', preferences: '' });
       setShowAdd(false);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -67,7 +67,7 @@ export function CustomersPage() {
           >
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Nom
+                {t('customers.nameLabel')}
               </label>
               <input
                 required
@@ -79,7 +79,7 @@ export function CustomersPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Téléphone
+                {t('customers.phoneLabel')}
               </label>
               <input
                 required
@@ -91,7 +91,7 @@ export function CustomersPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Email
+                {t('customers.emailLabel')}
               </label>
               <input
                 type="email"
@@ -102,7 +102,7 @@ export function CustomersPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Préférences
+                {t('customers.preferencesLabel')}
               </label>
               <input
                 type="text"
@@ -117,7 +117,7 @@ export function CustomersPage() {
               type="submit"
               className="py-2.5 px-4 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
-              Enregistrer
+              {t('common.save')}
             </button>
           </form>
         )}
@@ -127,17 +127,17 @@ export function CustomersPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Client</th>
-                  <th className="px-5 py-3 font-semibold">Téléphone</th>
-                  <th className="px-5 py-3 font-semibold">Préférences</th>
+                  <th className="px-5 py-3 font-semibold">{t('customers.colCustomer')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('customers.colPhone')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('customers.colPreferences')}</th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Visites
+                    {t('customers.colVisits')}
                   </th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Points fidélité
+                    {t('customers.colLoyaltyPoints')}
                   </th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Total dépensé
+                    {t('customers.colTotalSpent')}
                   </th>
                 </tr>
               </thead>
@@ -160,7 +160,7 @@ export function CustomersPage() {
                       {c.visitsCount}
                     </td>
                     <td className="px-5 py-3 text-right font-bold text-[#FF8738] tabular-nums">
-                      {c.loyaltyPoints} pts
+                      {t('customers.pointsUnit', { count: c.loyaltyPoints })}
                     </td>
                     <td className="px-5 py-3 text-right font-semibold text-[var(--rm-ink)] tabular-nums">
                       {formatFcfa(c.totalSpentXof)}

@@ -314,11 +314,28 @@ function runMigrations(db: SqliteDatabase): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS menu_item_recipes (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+      stock_id TEXT NOT NULL REFERENCES stocks(id) ON DELETE CASCADE,
+      quantity_per_unit REAL NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(menu_item_id, stock_id)
+    );
+
     CREATE TABLE IF NOT EXISTS stock_alert_settings (
       restaurant_id TEXT PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
       in_app_enabled INTEGER NOT NULL DEFAULT 1,
       email_enabled INTEGER NOT NULL DEFAULT 1,
       recipient_emails TEXT NOT NULL DEFAULT '',
+      smtp_host TEXT NOT NULL DEFAULT '',
+      smtp_port INTEGER NOT NULL DEFAULT 587,
+      smtp_secure INTEGER NOT NULL DEFAULT 0,
+      smtp_user TEXT NOT NULL DEFAULT '',
+      smtp_pass TEXT NOT NULL DEFAULT '',
+      smtp_from TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL
     );
 
@@ -446,6 +463,44 @@ function runMigrations(db: SqliteDatabase): void {
   }
   if (!colNames.has('updated_at')) {
     db.exec('ALTER TABLE users ADD COLUMN updated_at TEXT;');
+  }
+
+  // Ensure restaurants & stock_alert_settings support printer_settings_json & smtp_* columns
+  const restoCols = new Set(
+    (db.prepare('PRAGMA table_info(restaurants)').all() as Array<{ name: string }>).map((c) => c.name),
+  );
+  const defaultPrinterJson =
+    '\'{"paperWidth":"80mm","connectionType":"BROWSER","printerHost":"","printerPort":9100,"autoPrintReceipt":false,"autoPrintKitchenTicket":false}\'';
+  if (!restoCols.has('printer_settings_json')) {
+    db.exec(`ALTER TABLE restaurants ADD COLUMN printer_settings_json TEXT NOT NULL DEFAULT ${defaultPrinterJson};`);
+  }
+  const tenantCols = new Set(
+    (db.prepare('PRAGMA table_info(tenants)').all() as Array<{ name: string }>).map((c) => c.name),
+  );
+  if (!tenantCols.has('printer_settings_json')) {
+    db.exec(`ALTER TABLE tenants ADD COLUMN printer_settings_json TEXT NOT NULL DEFAULT ${defaultPrinterJson};`);
+  }
+
+  const alertCols = new Set(
+    (db.prepare('PRAGMA table_info(stock_alert_settings)').all() as Array<{ name: string }>).map((c) => c.name),
+  );
+  if (!alertCols.has('smtp_host')) {
+    db.exec("ALTER TABLE stock_alert_settings ADD COLUMN smtp_host TEXT NOT NULL DEFAULT '';");
+  }
+  if (!alertCols.has('smtp_port')) {
+    db.exec('ALTER TABLE stock_alert_settings ADD COLUMN smtp_port INTEGER NOT NULL DEFAULT 587;');
+  }
+  if (!alertCols.has('smtp_secure')) {
+    db.exec('ALTER TABLE stock_alert_settings ADD COLUMN smtp_secure INTEGER NOT NULL DEFAULT 0;');
+  }
+  if (!alertCols.has('smtp_user')) {
+    db.exec("ALTER TABLE stock_alert_settings ADD COLUMN smtp_user TEXT NOT NULL DEFAULT '';");
+  }
+  if (!alertCols.has('smtp_pass')) {
+    db.exec("ALTER TABLE stock_alert_settings ADD COLUMN smtp_pass TEXT NOT NULL DEFAULT '';");
+  }
+  if (!alertCols.has('smtp_from')) {
+    db.exec("ALTER TABLE stock_alert_settings ADD COLUMN smtp_from TEXT NOT NULL DEFAULT '';");
   }
 
   db.exec(`
@@ -1068,6 +1123,17 @@ function seedDatabaseIfEmpty(db: SqliteDatabase): void {
   insertStock.run('stk_3', resto1Id, 'Poulet fermier', 'pièce', 18, 12, 2800, 'Fermes d’Azaguié', now);
   insertStock.run('stk_4', resto1Id, 'Fleurs de Bissap séchées', 'kg', 2.2, 5, 1900, 'Marché d’Adjamé', now);
   insertStock.run('stk_5', resto1Id, 'Banane plantain mûre', 'régime', 9, 4, 3500, 'Producteurs Agboville', now);
+
+  // 9b. Technical Recipes (Fiches techniques liant plats -> ingrédients)
+  const insertRecipe = db.prepare(`
+    INSERT INTO menu_item_recipes (id, restaurant_id, menu_item_id, stock_id, quantity_per_unit, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  insertRecipe.run('rec_1', resto1Id, 'itm_capitaine', 'stk_1', 0.35, now, now);
+  insertRecipe.run('rec_2', resto1Id, 'itm_capitaine', 'stk_2', 0.25, now, now);
+  insertRecipe.run('rec_3', resto1Id, 'itm_poulet', 'stk_3', 0.5, now, now);
+  insertRecipe.run('rec_4', resto1Id, 'itm_alloco', 'stk_5', 0.15, now, now);
+  insertRecipe.run('rec_5', resto1Id, 'itm_bissap', 'stk_4', 0.05, now, now);
 
   // 10. Customers & Reservations & Expenses
   const insertCust = db.prepare(`

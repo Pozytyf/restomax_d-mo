@@ -55,6 +55,33 @@ export const restaurantController = {
     }
   },
 
+  getRecipes(req: Request, res: Response) {
+    try {
+      const menuItemId =
+        typeof req.query.menuItemId === 'string' ? req.query.menuItemId : undefined;
+      const recipes = restaurantService.getRecipes(
+        req.auth!.restaurantId!,
+        menuItemId,
+      );
+      res.json({ recipes });
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur chargement fiches techniques.');
+    }
+  },
+
+  updateMenuItemRecipe(req: Request, res: Response) {
+    try {
+      const recipes = restaurantService.updateMenuItemRecipe(
+        req.auth!,
+        String(req.params.id),
+        req.body || {},
+      );
+      res.json({ recipes });
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur mise à jour fiche technique.');
+    }
+  },
+
   getOrders(req: Request, res: Response) {
     try {
       const orders = restaurantService.getOrders(req.auth!.restaurantId!);
@@ -64,9 +91,9 @@ export const restaurantController = {
     }
   },
 
-  createPosOrder(req: Request, res: Response) {
+  async createPosOrder(req: Request, res: Response) {
     try {
-      const result = restaurantService.createPosOrder(
+      const result = await restaurantService.createPosOrder(
         req.auth!,
         req.body || {},
       );
@@ -251,6 +278,15 @@ export const restaurantController = {
     }
   },
 
+  async testStockAlertEmail(req: Request, res: Response) {
+    try {
+      const result = await restaurantService.testStockAlertEmail(req.auth!);
+      res.json(result);
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur test SMTP.');
+    }
+  },
+
   getNotifications(req: Request, res: Response) {
     try {
       const data = restaurantService.getNotifications(req.auth!.restaurantId!);
@@ -410,6 +446,18 @@ export const restaurantController = {
       res.json({ ok: true });
     } catch (err) {
       handleControllerError(res, err, 'Erreur mise à jour paramètres.');
+    }
+  },
+
+  async printEscposTicket(req: Request, res: Response) {
+    try {
+      const result = await restaurantService.printEscposTicket(
+        req.auth!,
+        req.body || {},
+      );
+      res.json(result);
+    } catch (err) {
+      handleControllerError(res, err, 'Erreur impression thermique ESC/POS.');
     }
   },
 

@@ -255,7 +255,8 @@ test('4. QR Ordering, QR Revocation & Stock movement', async () => {
     body: { movementType: 'IN', quantity: 10, reason: 'Livraison port' },
   });
   assert.equal(stkMove.status, 200);
-  assert.equal(stkMove.data.quantity, 14.5);
+  // 4.5 initial - (2 * 0.35 auto-deducted in Test 2 for itm_capitaine) + 10 IN = 13.8
+  assert.equal(stkMove.data.quantity, 13.8);
 });
 
 test('5. Session revocation & Restaurant suspension block old tokens', async () => {

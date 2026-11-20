@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, QrCode, Monitor, ChefHat } from 'lucide-react';
 import { MarketingLayout } from '../components/MarketingLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
+const STEP_META = [
+  { icon: QrCode, actionTo: '/q/sillage-table-01-v1' },
+  { icon: ChefHat, actionTo: '/connexion' },
+  { icon: Monitor, actionTo: '/connexion' },
+];
+
 export function DemoPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -20,29 +28,16 @@ export function DemoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const steps = [
-    {
-      title: '1. Commande QR ou prise de commande en salle',
-      icon: QrCode,
-      desc: 'Le client scanne le QR unique de sa table ou le serveur saisit le ticket sur tablette. Les prix et disponibilités sont validés en direct côté serveur.',
-      actionLabel: 'Tester le menu QR de la Table 01',
-      actionTo: '/q/sillage-table-01-v1',
-    },
-    {
-      title: '2. Routage instantané Cuisine & Bar (KDS)',
-      icon: ChefHat,
-      desc: 'Les plats chauds apparaissent sur l’écran Cuisine et les boissons sur l’écran Bar. Dès qu’une préparation est prête, le service en salle est averti en temps réel.',
-      actionLabel: 'Ouvrir l’espace Cuisine/Bar via Connexion',
-      actionTo: '/connexion',
-    },
-    {
-      title: '3. Encaissement POS & pilotage financier FCFA',
-      icon: Monitor,
-      desc: 'Le caissier encaisse en espèces, carte ou Mobile Money (mode TEST configurable PayDunya), gère les paiements partiels et met à jour le chiffre d’affaires du propriétaire.',
-      actionLabel: 'Ouvrir le Dashboard Propriétaire',
-      actionTo: '/connexion',
-    },
-  ];
+  const translatedSteps = t('marketingPages.demo.steps', {
+    returnObjects: true,
+  }) as Array<{ title: string; desc: string; actionLabel: string }>;
+  const steps = (Array.isArray(translatedSteps) ? translatedSteps : []).map(
+    (s, idx) => ({
+      ...s,
+      icon: STEP_META[idx % STEP_META.length].icon,
+      actionTo: STEP_META[idx % STEP_META.length].actionTo,
+    }),
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,10 +48,12 @@ export function DemoPage() {
         body: JSON.stringify(form),
       });
       setSubmitted(true);
-      notify('Demande de démonstration enregistrée.', 'success');
+      notify(t('marketingPages.demo.submittedToast'), 'success');
     } catch (err) {
       notify(
-        err instanceof Error ? err.message : 'Erreur lors de l’envoi.',
+        err instanceof Error
+          ? err.message
+          : t('marketingPages.demo.submitErrorToast'),
         'error',
       );
     } finally {
@@ -69,13 +66,13 @@ export function DemoPage() {
       <section className="bg-white border-b border-slate-200 py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-xs font-semibold text-[#FF8738]">
-            Démonstration guidée
+            {t('marketingPages.demo.eyebrow')}
           </p>
           <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold text-[#182333] tracking-tight">
-            Découvrez le flux complet de Resto’MAX en action
+            {t('marketingPages.demo.title')}
           </h1>
           <p className="mt-3 text-[#64748B] max-w-2xl">
-            Explorez chaque étape du parcours opérationnel ou testez directement notre environnement de démonstration multi-rôles.
+            {t('marketingPages.demo.subtitle')}
           </p>
         </div>
       </section>
@@ -95,12 +92,12 @@ export function DemoPage() {
                       : 'bg-white border border-slate-200 text-[#64748B] hover:text-[#182333]'
                   }`}
                 >
-                  Étape {idx + 1}
+                  {t('marketingPages.demo.stepBtn', { num: idx + 1 })}
                 </button>
               ))}
             </div>
 
-            {(() => {
+            {steps[step] && (() => {
               const current = steps[step];
               const Icon = current.icon;
               return (
@@ -130,17 +127,17 @@ export function DemoPage() {
             <div className="bg-[#182333] text-white rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-base">
-                  Accès immédiat aux comptes de démonstration
+                  {t('marketingPages.demo.quickAccessTitle')}
                 </h3>
                 <p className="text-xs text-slate-300 mt-1">
-                  Connexion directe en 1 clic pour Propriétaire, Caissier, Cuisine/Bar et Super-admin.
+                  {t('marketingPages.demo.quickAccessDesc')}
                 </p>
               </div>
               <Link
                 to="/connexion"
                 className="px-4 py-2.5 rounded-lg bg-[#FF8738] text-white text-xs font-semibold whitespace-nowrap"
               >
-                Aller à la connexion
+                {t('marketingPages.demo.goToLoginBtn')}
               </Link>
             </div>
           </div>
@@ -148,20 +145,20 @@ export function DemoPage() {
           <div className="lg:col-span-5">
             <div className="bg-white rounded-2xl border border-slate-200 p-7">
               <h2 className="text-lg font-bold text-[#182333]">
-                Demander une démonstration commerciale
+                {t('marketingPages.demo.formTitle')}
               </h2>
               <p className="text-xs text-[#64748B] mt-1">
-                Un conseiller vous présente Resto’MAX selon les spécificités de votre établissement.
+                {t('marketingPages.demo.formSubtitle')}
               </p>
 
               {submitted ? (
                 <div className="mt-6 p-5 rounded-xl bg-[#F5F7FA] border border-slate-200 text-center space-y-2">
                   <CheckCircle2 className="w-8 h-8 text-[#14B8A6] mx-auto" />
                   <p className="font-semibold text-[#182333] text-sm">
-                    Demande bien enregistrée
+                    {t('marketingPages.demo.submittedTitle')}
                   </p>
                   <p className="text-xs text-[#64748B]">
-                    Nous reviendrons vers vous par email pour fixer un créneau.
+                    {t('marketingPages.demo.submittedDesc')}
                   </p>
                 </div>
               ) : (
@@ -177,7 +174,7 @@ export function DemoPage() {
                   />
                   <div>
                     <label className="block text-xs font-semibold text-[#182333] mb-1">
-                      Nom complet *
+                      {t('marketingPages.demo.fullNameLabel')}
                     </label>
                     <input
                       required
@@ -191,7 +188,7 @@ export function DemoPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#182333] mb-1">
-                      Nom du restaurant *
+                      {t('marketingPages.demo.restaurantNameLabel')}
                     </label>
                     <input
                       required
@@ -206,7 +203,7 @@ export function DemoPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-[#182333] mb-1">
-                        Email professionnel *
+                        {t('marketingPages.demo.emailLabel')}
                       </label>
                       <input
                         required
@@ -220,7 +217,7 @@ export function DemoPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#182333] mb-1">
-                        Téléphone
+                        {t('marketingPages.demo.phoneLabel')}
                       </label>
                       <input
                         type="tel"
@@ -234,7 +231,7 @@ export function DemoPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#182333] mb-1">
-                      Besoins prioritaires
+                      {t('marketingPages.demo.needsLabel')}
                     </label>
                     <textarea
                       rows={3}
@@ -250,7 +247,9 @@ export function DemoPage() {
                     disabled={submitting}
                     className="w-full py-2.5 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    {submitting ? 'Envoi en cours…' : 'Planifier une démonstration'}
+                    {submitting
+                      ? t('marketingPages.demo.submittingBtn')
+                      : t('marketingPages.demo.submitBtn')}
                   </button>
                 </form>
               )}

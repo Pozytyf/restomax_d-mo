@@ -70,7 +70,7 @@ export function SuperAdminDashboardPage() {
           {[1, 2, 3, 4].map((n) => (
             <div
               key={n}
-              className="h-28 rounded-xl bg-white border border-slate-200 animate-pulse"
+              className="h-28 rounded-xl bg-[var(--rm-surface)] border border-[var(--rm-border)] animate-pulse"
             />
           ))}
         </div>
@@ -78,15 +78,15 @@ export function SuperAdminDashboardPage() {
         <div className="space-y-6">
           {/* Platform KPI Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex justify-between text-xs text-[#64748B]">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                 <span>{t('superadmin.registeredRestaurants')}</span>
-                <Store className="w-4 h-4 text-[#182333]" />
+                <Store className="w-4 h-4 text-[var(--rm-ink)]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {data.kpis.totalRestaurants}
               </p>
-              <p className="mt-1 text-xs text-[#64748B] tabular-nums">
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)] tabular-nums">
                 {t('superadmin.restaurantStats', {
                   active: data.kpis.activeRestaurants,
                   trial: data.kpis.trialRestaurants,
@@ -95,12 +95,12 @@ export function SuperAdminDashboardPage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex justify-between text-xs text-[#64748B]">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                 <span>{t('superadmin.platformRevenue')}</span>
                 <CreditCard className="w-4 h-4 text-[#14B8A6]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {formatFcfa(data.kpis.platformRevenueXof)}
               </p>
               <p className="mt-1 text-xs text-[#14B8A6]">
@@ -108,8 +108,8 @@ export function SuperAdminDashboardPage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex justify-between text-xs text-[#64748B]">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                 <span>{t('superadmin.pendingPayments')}</span>
                 <ShieldAlert className="w-4 h-4 text-[#E5A32A]" />
               </div>
@@ -118,34 +118,34 @@ export function SuperAdminDashboardPage() {
               </p>
               <Link
                 to="/superadmin/billing"
-                className="mt-1 inline-block text-xs font-semibold text-[#182333] hover:text-[#FF8738]"
+                className="mt-1 inline-block text-xs font-semibold text-[var(--rm-ink)] hover:text-[#FF8738]"
               >
                 {t('superadmin.viewBilling')}
               </Link>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex justify-between text-xs text-[#64748B]">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                 <span>{t('superadmin.activeUsers')}</span>
                 <Users className="w-4 h-4 text-[#FF8738]" />
               </div>
-              <p className="mt-2 text-2xl font-extrabold text-[#182333] tabular-nums">
+              <p className="mt-2 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
                 {data.kpis.activeUsersCount}
               </p>
-              <p className="mt-1 text-xs text-[#64748B] tabular-nums">
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)] tabular-nums">
                 {t('superadmin.activeSubsCount', { count: data.kpis.activeSubscriptions })}
               </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex justify-between text-xs text-[#64748B]">
+            <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5">
+              <div className="flex justify-between text-xs text-[var(--rm-ink-muted)]">
                 <span>{t('superadmin.ticketsAndLeads')}</span>
                 <LifeBuoy className="w-4 h-4 text-[#FF8738]" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-[#FF8738] tabular-nums">
                 {t('superadmin.openTicketsCount', { count: data.kpis.openTicketsCount })}
               </p>
-              <p className="mt-1 text-xs text-[#64748B] tabular-nums">
+              <p className="mt-1 text-xs text-[var(--rm-ink-muted)] tabular-nums">
                 {t('superadmin.websiteLeadsCount', { count: data.kpis.leadsCount })}
               </p>
             </div>
@@ -153,9 +153,9 @@ export function SuperAdminDashboardPage() {
 
           {/* Restaurants & Audit Blocks */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                <h2 className="text-base font-bold text-[#182333]">
+            <div className="lg:col-span-7 bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[var(--rm-border)] flex items-center justify-between">
+                <h2 className="text-base font-bold text-[var(--rm-ink)]">
                   {t('superadmin.recentRestaurants')}
                 </h2>
                 <Link
@@ -167,7 +167,7 @@ export function SuperAdminDashboardPage() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+                  <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                     <tr>
                       <th className="px-5 py-3 font-semibold">{t('superadmin.venueCol')}</th>
                       <th className="px-5 py-3 font-semibold">{t('superadmin.cityCol')}</th>
@@ -178,16 +178,16 @@ export function SuperAdminDashboardPage() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                     {data.recentRestaurants.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-semibold text-[#182333]">
+                      <tr key={r.id} className="hover:bg-[var(--rm-surface-hover)] transition-colors">
+                        <td className="px-5 py-3 font-semibold text-[var(--rm-ink)]">
                           {r.name}
                         </td>
-                        <td className="px-5 py-3 text-xs text-[#64748B]">
+                        <td className="px-5 py-3 text-xs text-[var(--rm-ink-muted)]">
                           {r.city}
                         </td>
-                        <td className="px-5 py-3 text-xs font-medium">
+                        <td className="px-5 py-3 text-xs font-medium text-[var(--rm-ink)]">
                           {r.planName || '—'}
                         </td>
                         <td className="px-5 py-3 text-xs font-semibold">
@@ -203,7 +203,7 @@ export function SuperAdminDashboardPage() {
                             {r.status}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-right text-xs text-[#64748B] tabular-nums">
+                        <td className="px-5 py-3 text-right text-xs text-[var(--rm-ink-muted)] tabular-nums">
                           {formatDateFr(r.createdAt)}
                         </td>
                       </tr>
@@ -213,9 +213,9 @@ export function SuperAdminDashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+            <div className="lg:col-span-5 bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6 space-y-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-[#182333]">
+                <h2 className="text-base font-bold text-[var(--rm-ink)]">
                   {t('superadmin.auditActivityTitle')}
                 </h2>
                 <Link
@@ -229,29 +229,29 @@ export function SuperAdminDashboardPage() {
                 {data.recentAudit.map((a) => (
                   <div
                     key={a.id}
-                    className="py-2 border-b border-slate-100 last:border-0 text-xs"
+                    className="py-2 border-b border-[var(--rm-border-subtle)] last:border-0 text-xs"
                   >
                     <div className="flex justify-between gap-2">
-                      <span className="font-mono font-semibold text-[#182333]">
+                      <span className="font-mono font-semibold text-[var(--rm-ink)]">
                         {a.action}
                       </span>
-                      <span className="text-[#64748B] tabular-nums">
+                      <span className="text-[var(--rm-ink-muted)] tabular-nums">
                         {formatTimeFr(a.createdAt)}
                       </span>
                     </div>
-                    <p className="text-[#64748B] mt-0.5 truncate">
+                    <p className="text-[var(--rm-ink-muted)] mt-0.5 truncate">
                       {a.actorEmail} {a.details ? `· ${a.details}` : ''}
                     </p>
                   </div>
                 ))}
               </div>
 
-              <div className="p-4 rounded-xl bg-[#F5F7FA] border border-slate-200 space-y-1.5 text-xs">
-                <div className="flex items-center gap-2 font-semibold text-[#182333]">
+              <div className="p-4 rounded-xl bg-[var(--rm-surface-muted)] border border-[var(--rm-border)] space-y-1.5 text-xs">
+                <div className="flex items-center gap-2 font-semibold text-[var(--rm-ink)]">
                   <CheckCircle2 className="w-4 h-4 text-[#14B8A6]" />
                   <span>{t('superadmin.platformHealth')}</span>
                 </div>
-                <p className="text-[#64748B]">
+                <p className="text-[var(--rm-ink-muted)]">
                   {t('superadmin.platformHealthDesc')}
                 </p>
               </div>

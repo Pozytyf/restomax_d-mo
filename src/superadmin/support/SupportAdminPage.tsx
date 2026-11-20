@@ -47,11 +47,11 @@ export function SupportAdminPage() {
           status,
         }),
       });
-      notify('Ticket mis à jour.', 'success');
+      notify(t('superadminPages.support.updatedToast'), 'success');
       setReplyText((r) => ({ ...r, [ticketId]: '' }));
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -59,36 +59,37 @@ export function SupportAdminPage() {
     <SuperAdminLayout title={t('superadmin.supportTitle')}>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-4">
-          <h2 className="text-base font-bold text-[#182333]">
-            Tickets clients ({tickets.length})
+          <h2 className="text-base font-bold text-[var(--rm-ink)]">
+            {t('superadminPages.support.ticketsTitle', { count: tickets.length })}
           </h2>
-          {tickets.map((t) => (
+          {tickets.map((ticket) => (
             <div
-              key={t.id}
-              className="bg-white rounded-xl border border-slate-200 p-5 space-y-3"
+              key={ticket.id}
+              className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 space-y-3"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-[#182333] text-sm">
-                    {t.subject}
+                  <h3 className="font-bold text-[var(--rm-ink)] text-sm">
+                    {ticket.subject}
                   </h3>
-                  <p className="text-xs text-[#64748B]">
-                    {t.restaurantName || 'Plateforme'} · {t.createdByEmail} ·{' '}
-                    {t.priority}
+                  <p className="text-xs text-[var(--rm-ink-muted)]">
+                    {ticket.restaurantName ||
+                      t('superadminPages.support.platformFallback')}{' '}
+                    · {ticket.createdByEmail} · {ticket.priority}
                   </p>
                 </div>
                 <span className="text-xs font-bold text-[#FF8738]">
-                  {t.status}
+                  {ticket.status}
                 </span>
               </div>
 
-              <div className="space-y-2 border-t border-b border-slate-100 py-3">
-                {t.messages.map((m) => (
+              <div className="space-y-2 border-t border-b border-[var(--rm-border-subtle)] py-3">
+                {ticket.messages.map((m) => (
                   <div key={m.id} className="text-xs">
-                    <span className="font-semibold text-[#182333]">
+                    <span className="font-semibold text-[var(--rm-ink)]">
                       {m.author} ({m.role}) :
                     </span>{' '}
-                    <span className="text-[#64748B]">{m.body}</span>
+                    <span className="text-[var(--rm-ink-muted)]">{m.body}</span>
                   </div>
                 ))}
               </div>
@@ -96,26 +97,26 @@ export function SupportAdminPage() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Répondre au restaurant…"
-                  value={replyText[t.id] || ''}
+                  placeholder={t('superadminPages.support.replyPlaceholder')}
+                  value={replyText[ticket.id] || ''}
                   onChange={(e) =>
-                    setReplyText({ ...replyText, [t.id]: e.target.value })
+                    setReplyText({ ...replyText, [ticket.id]: e.target.value })
                   }
-                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                  className="flex-1 px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] placeholder:text-[var(--rm-ink-muted)] text-xs"
                 />
                 <button
                   type="button"
-                  onClick={() => sendReply(t.id, 'IN_PROGRESS')}
-                  className="px-3 py-2 rounded-lg bg-[#182333] text-white text-xs font-semibold cursor-pointer"
+                  onClick={() => sendReply(ticket.id, 'IN_PROGRESS')}
+                  className="px-3 py-2 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
                 >
-                  Répondre
+                  {t('superadminPages.support.replyBtn')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => sendReply(t.id, 'RESOLVED')}
+                  onClick={() => sendReply(ticket.id, 'RESOLVED')}
                   className="px-3 py-2 rounded-lg bg-[#14B8A6] text-white text-xs font-semibold cursor-pointer"
                 >
-                  Résolu
+                  {t('superadminPages.support.resolvedBtn')}
                 </button>
               </div>
             </div>
@@ -123,30 +124,30 @@ export function SupportAdminPage() {
         </div>
 
         <div className="lg:col-span-5 space-y-4">
-          <h2 className="text-base font-bold text-[#182333]">
-            Prospects & Démos ({leads.length})
+          <h2 className="text-base font-bold text-[var(--rm-ink)]">
+            {t('superadminPages.support.leadsTitle', { count: leads.length })}
           </h2>
-          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+          <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] divide-y divide-[var(--rm-border-subtle)]">
             {leads.length === 0 ? (
-              <p className="p-6 text-xs text-[#64748B] text-center">
-                Aucune demande soumise depuis le site vitrine pour le moment.
+              <p className="p-6 text-xs text-[var(--rm-ink-muted)] text-center">
+                {t('superadminPages.support.noLeadsYet')}
               </p>
             ) : (
               leads.map((l) => (
                 <div key={l.id} className="p-4 text-xs space-y-1">
                   <div className="flex justify-between">
-                    <span className="font-bold text-[#182333]">
+                    <span className="font-bold text-[var(--rm-ink)]">
                       {l.full_name}
                     </span>
                     <span className="text-[#FF8738] font-semibold">
                       {l.lead_type}
                     </span>
                   </div>
-                  <p className="text-[#64748B]">
+                  <p className="text-[var(--rm-ink-muted)]">
                     {l.email} · {l.restaurant_name || 'N/A'}
                   </p>
-                  <p className="text-[#182333]">{l.message}</p>
-                  <p className="text-[11px] text-[#64748B]">
+                  <p className="text-[var(--rm-ink)]">{l.message}</p>
+                  <p className="text-[11px] text-[var(--rm-ink-muted)]">
                     {formatDateTimeFr(l.created_at)}
                   </p>
                 </div>

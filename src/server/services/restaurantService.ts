@@ -12,8 +12,46 @@ import {
 } from '../repositories/restaurantRepository.ts';
 import { BaseService } from './BaseService.ts';
 import { AppError } from './errors.ts';
-import { sendCriticalStockAlertEmail } from './mailer.ts';
-import type { Permission, Role } from '../../types/index.ts';
+import {
+  isEnvSmtpConfigured,
+  sendCriticalStockAlertEmail,
+  sendSmtpTestEmail,
+} from './mailer.ts';
+import { sendRawBytesOverTcp } from './printerRelay.ts';
+import {
+  buildEscPosKitchenPayload,
+  buildEscPosReceiptPayload,
+} from '../../shared/escpos.ts';
+import type { Permission, PrinterSettings, Role } from '../../types/index.ts';
+
+const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
+  paperWidth: '80mm',
+  connectionType: 'BROWSER',
+  printerHost: '',
+  printerPort: 9100,
+  autoPrintReceipt: false,
+  autoPrintKitchenTicket: false,
+};
+
+function parsePrinterSettings(raw: unknown): PrinterSettings {
+  try {
+    const parsed = JSON.parse(String(raw || '{}')) as Partial<PrinterSettings>;
+    return {
+      paperWidth: parsed.paperWidth === '58mm' ? '58mm' : '80mm',
+      connectionType:
+        parsed.connectionType === 'NETWORK_ESCPOS' ||
+        parsed.connectionType === 'WEB_SERIAL'
+          ? parsed.connectionType
+          : 'BROWSER',
+      printerHost: String(parsed.printerHost || '').trim(),
+      printerPort: Number(parsed.printerPort || 9100),
+      autoPrintReceipt: Boolean(parsed.autoPrintReceipt),
+      autoPrintKitchenTicket: Boolean(parsed.autoPrintKitchenTicket),
+    };
+  } catch {
+    return { ...DEFAULT_PRINTER_SETTINGS };
+  }
+}
 
 export class RestaurantService extends BaseService<RestaurantRepository> {
   constructor(repo = restaurantRepository) {
@@ -60,14 +98,78 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
   getMenu(rid: string) {
     const categories = restaurantRepository.findMenuCategories(rid);
     const itemsRaw = restaurantRepository.findMenuItems(rid);
+    const recipes = restaurantRepository.findMenuRecipes(rid);
+    const recipesByItem = new Map<string, typeof recipes>();
+    for (const r of recipes) {
+      const list = recipesByItem.get(r.menuItemId) || [];
+      list.push(r);
+      recipesByItem.set(r.menuItemId, list);
+    }
     return {
       categories: categories.map((c) => ({ ...c, active: Boolean(c.active) })),
       items: itemsRaw.map((r) => ({
         ...r,
         available: Boolean(r.available),
         options: JSON.parse(String(r.options_json || '[]')),
+        recipeLines: recipesByItem.get(String(r.id)) || [],
       })),
     };
+  }
+
+  getRecipes(rid: string, menuItemId?: string) {
+    this.ensureTenantId(rid);
+    return restaurantRepository.findMenuRecipes(rid, menuItemId);
+  }
+
+  updateMenuItemRecipe(
+    auth: AuthContext,
+    menuItemId: string,
+    body: Record<string, unknown>,
+  ) {
+    const rid = auth.restaurantId!;
+    const item = restaurantRepository.findMenuItemById(menuItemId, rid);
+    if (!item) {
+      throw new AppError(404, 'Article du menu introuvable.');
+    }
+
+    const rawLines = Array.isArray(body?.lines) ? body.lines : [];
+    const cleanMap = new Map<string, number>();
+    for (const raw of rawLines) {
+      const row = raw as { stockId?: unknown; quantityPerUnit?: unknown };
+      const stockId = typeof row.stockId === 'string' ? row.stockId.trim() : '';
+      const qty = Number(row.quantityPerUnit);
+      if (!stockId || !Number.isFinite(qty) || qty <= 0) {
+        continue;
+      }
+      const stock = restaurantRepository.findStockById(stockId, rid);
+      if (!stock) {
+        throw new AppError(404, 'Ingrédient introuvable pour cet établissement.');
+      }
+      cleanMap.set(stockId, Math.round(qty * 1000) / 1000);
+    }
+
+    const cleanLines = Array.from(cleanMap.entries()).map(
+      ([stockId, quantityPerUnit]) => ({ stockId, quantityPerUnit }),
+    );
+    const saved = restaurantRepository.replaceMenuItemRecipe(
+      rid,
+      menuItemId,
+      cleanLines,
+    );
+
+    recordAudit(getDb(), {
+      actorUserId: auth.userId,
+      actorEmail: auth.email,
+      actorRole: auth.role,
+      restaurantId: rid,
+      action: 'MENU_RECIPE_UPDATED',
+      targetType: 'MENU_ITEM',
+      targetId: menuItemId,
+      details: `${saved.length} ingrédient(s) lié(s)`,
+    });
+
+    broadcastRestaurantEvent(rid, 'menu:updated', { itemId: menuItemId });
+    return saved;
   }
 
   createCategory(rid: string, body: Record<string, unknown>) {
@@ -173,7 +275,7 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
     return restaurantRepository.findOrdersWithItems(rid);
   }
 
-  createPosOrder(auth: AuthContext, body: Record<string, unknown>) {
+  async createPosOrder(auth: AuthContext, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
     const {
       orderType,
@@ -216,21 +318,35 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
     const orderNumber = `CMD-${1001 + count}`;
 
     const db = getDb();
+    let deductionResult: {
+      deductedCount: number;
+      lowStocksTriggered: Array<{
+        id: string;
+        name: string;
+        quantity: number;
+        minThreshold: number;
+        unit: string;
+        supplierName: string;
+      }>;
+    } = { deductedCount: 0, lowStocksTriggered: [] };
+    let createdTotalXof = 0;
+    let createdLines: Array<{
+      id: string;
+      menuItemId: string;
+      name: string;
+      station: string;
+      unitPriceXof: number;
+      optionsSummary: string;
+      optionsDeltaXof: number;
+      quantity: number;
+      lineTotalXof: number;
+      notes: string;
+    }> = [];
+
     try {
       db.exec('BEGIN IMMEDIATE');
       let grossXof = 0;
-      const lines: Array<{
-        id: string;
-        menuItemId: string;
-        name: string;
-        station: string;
-        unitPriceXof: number;
-        optionsSummary: string;
-        optionsDeltaXof: number;
-        quantity: number;
-        lineTotalXof: number;
-        notes: string;
-      }> = [];
+      const lines: typeof createdLines = [];
 
       for (const rawLine of items) {
         const line = rawLine as {
@@ -307,24 +423,20 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
         lines,
       });
 
-      db.exec('COMMIT');
-
-      broadcastRestaurantEvent(rid, 'order:created', {
-        orderId,
+      deductionResult = restaurantRepository.deductStocksForOrderItems({
+        rid,
         orderNumber,
-        totalXof,
+        items: lines.map((l) => ({
+          menuItemId: l.menuItemId,
+          quantity: l.quantity,
+        })),
+        userId: auth.userId,
+        now,
       });
 
-      return {
-        deduplicated: false,
-        order: {
-          id: orderId,
-          orderNumber,
-          totalXof,
-          status: 'PENDING',
-          items: lines,
-        },
-      };
+      db.exec('COMMIT');
+      createdTotalXof = totalXof;
+      createdLines = lines;
     } catch (err) {
       db.exec('ROLLBACK');
       if (err instanceof AppError) {
@@ -332,6 +444,43 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
       }
       throw new AppError(500, 'Erreur création commande.');
     }
+
+    if (deductionResult.deductedCount > 0) {
+      broadcastRestaurantEvent(rid, 'stock:updated', {
+        orderId,
+        orderNumber,
+        deductedCount: deductionResult.deductedCount,
+      });
+      for (const low of deductionResult.lowStocksTriggered) {
+        await this.dispatchCriticalStockAlert({
+          restaurantId: rid,
+          auth,
+          stockId: low.id,
+          stockName: low.name,
+          quantity: low.quantity,
+          minThreshold: low.minThreshold,
+          unit: low.unit,
+          supplierName: low.supplierName,
+        });
+      }
+    }
+
+    broadcastRestaurantEvent(rid, 'order:created', {
+      orderId,
+      orderNumber,
+      totalXof: createdTotalXof,
+    });
+
+    return {
+      deduplicated: false,
+      order: {
+        id: orderId,
+        orderNumber,
+        totalXof: createdTotalXof,
+        status: 'PENDING',
+        items: createdLines,
+      },
+    };
   }
 
   updateOrderStatus(auth: AuthContext, orderId: string, status: unknown) {
@@ -597,7 +746,8 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
   }
 
   async dispatchCriticalStockAlert(params: {
-    auth: AuthContext;
+    restaurantId?: string;
+    auth?: AuthContext;
     stockId: string;
     stockName: string;
     quantity: number;
@@ -605,7 +755,10 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
     unit: string;
     supplierName: string;
   }) {
-    const rid = params.auth.restaurantId!;
+    const rid = params.restaurantId || params.auth?.restaurantId;
+    if (!rid) {
+      throw new AppError(400, 'Identifiant restaurant requis.');
+    }
     const settings = restaurantRepository.findStockAlertSettings(rid);
     const recipients = this.resolveStockAlertRecipients(
       rid,
@@ -632,6 +785,16 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
         unit: params.unit,
         supplierName: params.supplierName,
         recipients,
+        smtpConfig: settings.smtpHost
+          ? {
+              host: settings.smtpHost,
+              port: settings.smtpPort,
+              secure: settings.smtpSecure,
+              user: settings.smtpUser,
+              pass: settings.smtpPass,
+              from: settings.smtpFrom,
+            }
+          : undefined,
       });
     }
 
@@ -653,9 +816,9 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
     }
 
     recordAudit(getDb(), {
-      actorUserId: params.auth.userId,
-      actorEmail: params.auth.email,
-      actorRole: params.auth.role,
+      actorUserId: params.auth?.userId ?? null,
+      actorEmail: params.auth?.email ?? 'system@restomax.ci',
+      actorRole: params.auth?.role ?? 'SYSTEM',
       restaurantId: rid,
       action: 'STOCK_CRITICAL_ALERT',
       targetType: 'STOCK',
@@ -784,8 +947,19 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
     const recentAlerts = restaurantRepository.findRecentStockAlerts(rid);
     return {
       settings: {
-        ...settings,
+        restaurantId: settings.restaurantId,
+        inAppEnabled: settings.inAppEnabled,
+        emailEnabled: settings.emailEnabled,
+        recipientEmails: settings.recipientEmails,
         resolvedRecipients,
+        smtpHost: settings.smtpHost,
+        smtpPort: settings.smtpPort,
+        smtpSecure: settings.smtpSecure,
+        smtpUser: settings.smtpUser,
+        smtpFrom: settings.smtpFrom,
+        smtpPassConfigured: Boolean(settings.smtpPass && settings.smtpPass.length > 0),
+        envSmtpConfigured: isEnvSmtpConfigured(),
+        updatedAt: settings.updatedAt,
       },
       recentAlerts,
     };
@@ -793,7 +967,17 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
 
   updateStockAlertConfig(auth: AuthContext, body: Record<string, unknown>) {
     const rid = auth.restaurantId!;
-    const { inAppEnabled, emailEnabled, recipientEmails } = body || {};
+    const {
+      inAppEnabled,
+      emailEnabled,
+      recipientEmails,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpUser,
+      smtpPass,
+      smtpFrom,
+    } = body || {};
     const current = restaurantRepository.findStockAlertSettings(rid);
 
     const updated = restaurantRepository.upsertStockAlertSettings({
@@ -806,6 +990,18 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
         typeof recipientEmails === 'string'
           ? recipientEmails.trim()
           : current.recipientEmails,
+      smtpHost:
+        typeof smtpHost === 'string' ? smtpHost.trim() : current.smtpHost,
+      smtpPort: Number.isFinite(Number(smtpPort))
+        ? Math.max(1, Math.min(65535, Number(smtpPort)))
+        : current.smtpPort,
+      smtpSecure:
+        typeof smtpSecure === 'boolean' ? smtpSecure : current.smtpSecure,
+      smtpUser:
+        typeof smtpUser === 'string' ? smtpUser.trim() : current.smtpUser,
+      smtpPass: typeof smtpPass === 'string' ? smtpPass : undefined,
+      smtpFrom:
+        typeof smtpFrom === 'string' ? smtpFrom.trim() : current.smtpFrom,
     });
 
     recordAudit(getDb(), {
@@ -816,16 +1012,52 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
       action: 'STOCK_ALERT_CONFIG_UPDATED',
       targetType: 'RESTAURANT',
       targetId: rid,
-      details: `inApp=${updated.inAppEnabled} email=${updated.emailEnabled}`,
+      details: `inApp=${updated.inAppEnabled} email=${updated.emailEnabled} smtp=${updated.smtpHost || 'ENV'}`,
     });
 
     return {
-      ...updated,
+      restaurantId: updated.restaurantId,
+      inAppEnabled: updated.inAppEnabled,
+      emailEnabled: updated.emailEnabled,
+      recipientEmails: updated.recipientEmails,
       resolvedRecipients: this.resolveStockAlertRecipients(
         rid,
         updated.recipientEmails,
       ),
+      smtpHost: updated.smtpHost,
+      smtpPort: updated.smtpPort,
+      smtpSecure: updated.smtpSecure,
+      smtpUser: updated.smtpUser,
+      smtpFrom: updated.smtpFrom,
+      smtpPassConfigured: Boolean(updated.smtpPass && updated.smtpPass.length > 0),
+      envSmtpConfigured: isEnvSmtpConfigured(),
+      updatedAt: updated.updatedAt,
     };
+  }
+
+  async testStockAlertEmail(auth: AuthContext) {
+    const rid = auth.restaurantId!;
+    const settings = restaurantRepository.findStockAlertSettings(rid);
+    const recipients = this.resolveStockAlertRecipients(
+      rid,
+      settings.recipientEmails,
+    );
+    const restaurantName = restaurantRepository.findRestaurantNameById(rid);
+    const res = await sendSmtpTestEmail({
+      restaurantName,
+      recipients,
+      smtpConfig: settings.smtpHost
+        ? {
+            host: settings.smtpHost,
+            port: settings.smtpPort,
+            secure: settings.smtpSecure,
+            user: settings.smtpUser,
+            pass: settings.smtpPass,
+            from: settings.smtpFrom,
+          }
+        : undefined,
+    });
+    return res;
   }
 
   async triggerManualStockAlert(auth: AuthContext, stockId: string) {
@@ -1126,6 +1358,7 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
             resto.paydunya_private_key &&
             resto.paydunya_token,
         ),
+        printerSettings: parsePrinterSettings(resto.printerSettingsJson),
         status: resto.status,
         createdAt: resto.createdAt,
       },
@@ -1146,7 +1379,13 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
       paydunyaPublicKey,
       paydunyaPrivateKey,
       paydunyaToken,
+      printerSettings,
     } = body || {};
+
+    let printerSettingsJson: string | undefined;
+    if (printerSettings && typeof printerSettings === 'object') {
+      printerSettingsJson = JSON.stringify(parsePrinterSettings(JSON.stringify(printerSettings)));
+    }
 
     restaurantRepository.updateRestaurantSettings(rid, {
       name: name ? String(name).trim() : null,
@@ -1166,6 +1405,7 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
         ? String(paydunyaPrivateKey)
         : undefined,
       paydunyaToken: paydunyaToken ? String(paydunyaToken) : undefined,
+      printerSettingsJson,
     });
 
     recordAudit(getDb(), {
@@ -1177,6 +1417,94 @@ export class RestaurantService extends BaseService<RestaurantRepository> {
       targetType: 'RESTAURANT',
       targetId: rid,
     });
+  }
+
+  async printEscposTicket(auth: AuthContext, body: Record<string, unknown>) {
+    const rid = auth.restaurantId!;
+    const { resto } = restaurantRepository.findRestaurantSettings(rid);
+    const printer = parsePrinterSettings(resto.printerSettingsJson);
+    const kind = body?.kind === 'KITCHEN' ? 'KITCHEN' : 'RECEIPT';
+
+    const formatted =
+      kind === 'KITCHEN'
+        ? buildEscPosKitchenPayload({
+            paperWidth: printer.paperWidth,
+            restaurantName: String(resto.name || 'Resto’MAX'),
+            stationLabel: String(body?.stationLabel || 'CUISINE'),
+            orderNumber: String(body?.orderNumber || 'TEST-001'),
+            tableLabel: body?.tableLabel ? String(body.tableLabel) : null,
+            customerName: body?.customerName ? String(body.customerName) : undefined,
+            notes: body?.notes ? String(body.notes) : undefined,
+            createdAt: new Date().toISOString(),
+            items: Array.isArray(body?.items)
+              ? (body.items as Array<{
+                  name: string;
+                  quantity: number;
+                  optionsSummary?: string;
+                  notes?: string;
+                }>)
+              : [{ name: 'Test connexion imprimante thermique', quantity: 1 }],
+          })
+        : buildEscPosReceiptPayload({
+            paperWidth: printer.paperWidth,
+            restaurantName: String(resto.name || 'Resto’MAX'),
+            restaurantCity: String(resto.city || ''),
+            restaurantPhone: String(resto.phone || ''),
+            orderNumber: String(body?.orderNumber || 'TEST-001'),
+            tableLabel: body?.tableLabel ? String(body.tableLabel) : null,
+            customerName: body?.customerName ? String(body.customerName) : undefined,
+            createdAt: new Date().toISOString(),
+            paymentMethod: body?.paymentMethod ? String(body.paymentMethod) : undefined,
+            paymentReference: body?.paymentReference ? String(body.paymentReference) : undefined,
+            paidAmountXof:
+              typeof body?.paidAmountXof === 'number'
+                ? body.paidAmountXof
+                : undefined,
+            totalXof: Number(body?.totalXof || 0),
+            items: Array.isArray(body?.items)
+              ? (body.items as Array<{
+                  name: string;
+                  quantity: number;
+                  lineTotalXof: number;
+                  optionsSummary?: string;
+                }>)
+              : [
+                  {
+                    name: 'Test impression thermique ESC/POS',
+                    quantity: 1,
+                    lineTotalXof: 0,
+                  },
+                ],
+          });
+
+    const overrideHost =
+      typeof body?.printerHost === 'string' && body.printerHost.trim()
+        ? body.printerHost.trim()
+        : printer.printerHost;
+    const overridePort = Number(body?.printerPort || printer.printerPort || 9100);
+    const mode =
+      body?.sendNetwork === true || printer.connectionType === 'NETWORK_ESCPOS'
+        ? 'NETWORK_ESCPOS'
+        : printer.connectionType;
+
+    let networkResult: { ok: boolean; bytesSent: number; error?: string } | null =
+      null;
+    if (mode === 'NETWORK_ESCPOS' && overrideHost) {
+      networkResult = await sendRawBytesOverTcp(
+        overrideHost,
+        overridePort,
+        formatted.bytes,
+      );
+    }
+
+    return {
+      ok: networkResult ? networkResult.ok : true,
+      mode,
+      paperWidth: printer.paperWidth,
+      previewText: formatted.previewText,
+      base64Bytes: Buffer.from(formatted.bytes).toString('base64'),
+      networkResult,
+    };
   }
 
   getTickets(rid: string) {

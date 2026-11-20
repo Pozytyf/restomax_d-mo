@@ -38,6 +38,16 @@ restaurantRouter.patch(
   requirePermission('menu:write'),
   restaurantController.updateMenuItem,
 );
+restaurantRouter.get(
+  '/recipes',
+  requirePermission('menu:read'),
+  restaurantController.getRecipes,
+);
+restaurantRouter.put(
+  '/menu/items/:id/recipe',
+  requirePermission('menu:write'),
+  restaurantController.updateMenuItemRecipe,
+);
 
 // 3. ORDERS & KDS
 restaurantRouter.get(
@@ -126,6 +136,11 @@ restaurantRouter.post(
   requirePermission('stocks:write'),
   restaurantController.triggerManualStockAlert,
 );
+restaurantRouter.post(
+  '/stocks/alerts/test-email',
+  requirePermission('stocks:write'),
+  restaurantController.testStockAlertEmail,
+);
 
 // IN-APP NOTIFICATIONS
 restaurantRouter.get(
@@ -208,6 +223,11 @@ restaurantRouter.patch(
   '/settings',
   requirePermission('settings:write'),
   restaurantController.updateSettings,
+);
+restaurantRouter.post(
+  '/print/escpos',
+  requirePermission('pos:use'),
+  restaurantController.printEscposTicket,
 );
 restaurantRouter.get(
   '/tickets',

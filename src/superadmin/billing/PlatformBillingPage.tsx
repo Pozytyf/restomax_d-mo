@@ -6,7 +6,7 @@ import { useToast } from '../../components/Toast';
 import {
   formatDateFr,
   formatFcfa,
-  PAYMENT_METHOD_LABELS,
+  getPaymentMethodLabel,
 } from '../../utils/format';
 
 export function PlatformBillingPage() {
@@ -40,49 +40,62 @@ export function PlatformBillingPage() {
       await apiFetch(`/api/superadmin/billing/${id}/mark-paid`, {
         method: 'POST',
       });
-      notify('Facture plateforme marquée payée.', 'success');
+      notify(t('superadminPages.billing.markedPaidToast'), 'success');
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
   return (
     <SuperAdminLayout title={t('superadmin.billingTitle')}>
       <div className="space-y-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 text-xs text-[#64748B]">
-          Cette section suit exclusivement les abonnements payés par les restaurants à Resto’MAX. Les encaissements des convives ne transitent jamais ici.
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-4 text-xs text-[var(--rm-ink-muted)]">
+          {t('superadminPages.billing.isolationBanner')}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+              <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">N° Facture</th>
-                  <th className="px-5 py-3 font-semibold">Établissement</th>
-                  <th className="px-5 py-3 font-semibold">Moyen</th>
-                  <th className="px-5 py-3 font-semibold">Statut</th>
-                  <th className="px-5 py-3 font-semibold text-right">
-                    Montant
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.billing.colInvoiceNo')}
                   </th>
-                  <th className="px-5 py-3 font-semibold text-right">Date</th>
-                  <th className="px-5 py-3 font-semibold text-right">Action</th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.billing.colVenue')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.billing.colMethod')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.billing.colStatus')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('superadminPages.billing.colAmount')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('superadminPages.billing.colDate')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('superadminPages.billing.colAction')}
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-mono font-bold text-[#182333]">
+                  <tr
+                    key={inv.id}
+                    className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                  >
+                    <td className="px-5 py-3 font-mono font-bold text-[var(--rm-ink)]">
                       {inv.invoiceNumber}
                     </td>
-                    <td className="px-5 py-3 font-medium">
+                    <td className="px-5 py-3 font-medium text-[var(--rm-ink)]">
                       {inv.restaurantName}
                     </td>
-                    <td className="px-5 py-3 text-xs text-[#64748B]">
-                      {PAYMENT_METHOD_LABELS[inv.paymentMethod] ||
-                        inv.paymentMethod}{' '}
-                      ({inv.mode})
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink-muted)]">
+                      {getPaymentMethodLabel(inv.paymentMethod)} ({inv.mode})
                     </td>
                     <td className="px-5 py-3 text-xs font-bold">
                       <span
@@ -92,13 +105,15 @@ export function PlatformBillingPage() {
                             : 'text-[#E5A32A]'
                         }
                       >
-                        {inv.status === 'PAID' ? 'Payée' : 'En attente'}
+                        {inv.status === 'PAID'
+                          ? t('superadminPages.billing.paidStatus')
+                          : t('superadminPages.billing.pendingStatus')}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right font-bold tabular-nums">
+                    <td className="px-5 py-3 text-right font-bold text-[var(--rm-ink)] tabular-nums">
                       {formatFcfa(inv.amountXof)}
                     </td>
-                    <td className="px-5 py-3 text-right text-xs text-[#64748B] tabular-nums">
+                    <td className="px-5 py-3 text-right text-xs text-[var(--rm-ink-muted)] tabular-nums">
                       {formatDateFr(inv.createdAt)}
                     </td>
                     <td className="px-5 py-3 text-right">
@@ -108,7 +123,7 @@ export function PlatformBillingPage() {
                           onClick={() => markPaid(inv.id)}
                           className="text-xs font-semibold text-[#FF8738] hover:underline cursor-pointer"
                         >
-                          Valider paiement
+                          {t('superadminPages.billing.validatePayBtn')}
                         </button>
                       )}
                     </td>

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
-import { ROLE_LABELS } from '../../utils/format';
+import { getRoleLabel } from '../../utils/format';
 
 export function PlatformUsersPage() {
   const { t } = useTranslation();
@@ -39,48 +39,62 @@ export function PlatformUsersPage() {
       });
       notify(
         next === 'SUSPENDED'
-          ? 'Compte suspendu et sessions révoquées immédiatement.'
-          : 'Compte réactivé.',
+          ? t('superadminPages.users.suspendedToast')
+          : t('superadminPages.users.reactivatedToast'),
         'info',
       );
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
   return (
     <SuperAdminLayout title={t('superadmin.usersTitle')}>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+            <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
               <tr>
-                <th className="px-5 py-3 font-semibold">Nom</th>
-                <th className="px-5 py-3 font-semibold">Email</th>
-                <th className="px-5 py-3 font-semibold">Établissement</th>
-                <th className="px-5 py-3 font-semibold">Rôle</th>
-                <th className="px-5 py-3 font-semibold">Statut</th>
-                <th className="px-5 py-3 font-semibold text-right">Action</th>
+                <th className="px-5 py-3 font-semibold">
+                  {t('superadminPages.users.colName')}
+                </th>
+                <th className="px-5 py-3 font-semibold">
+                  {t('superadminPages.users.colEmail')}
+                </th>
+                <th className="px-5 py-3 font-semibold">
+                  {t('superadminPages.users.colVenue')}
+                </th>
+                <th className="px-5 py-3 font-semibold">
+                  {t('superadminPages.users.colRole')}
+                </th>
+                <th className="px-5 py-3 font-semibold">
+                  {t('superadminPages.users.colStatus')}
+                </th>
+                <th className="px-5 py-3 font-semibold text-right">
+                  {t('superadminPages.users.colAction')}
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--rm-border-subtle)]">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-3 font-semibold text-[#182333]">
+                <tr
+                  key={u.id}
+                  className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                >
+                  <td className="px-5 py-3 font-semibold text-[var(--rm-ink)]">
                     {u.fullName}
                   </td>
-                  <td className="px-5 py-3 text-xs font-mono text-[#64748B]">
+                  <td className="px-5 py-3 text-xs font-mono text-[var(--rm-ink-muted)]">
                     {u.email}
                   </td>
-                  <td className="px-5 py-3 text-xs">
-                    {u.restaurantName || 'Administration Resto’MAX'}
+                  <td className="px-5 py-3 text-xs text-[var(--rm-ink)]">
+                    {u.restaurantName || t('superadminPages.users.adminFallback')}
                   </td>
-                  <td className="px-5 py-3 text-xs font-medium">
+                  <td className="px-5 py-3 text-xs font-medium text-[var(--rm-ink)]">
                     {u.globalRole === 'SUPER_ADMIN'
-                      ? 'Super-admin'
-                      : ROLE_LABELS[u.restaurantRole || ''] ||
-                        u.restaurantRole}
+                      ? getRoleLabel('SUPER_ADMIN')
+                      : getRoleLabel(u.restaurantRole || '')}
                   </td>
                   <td className="px-5 py-3 text-xs font-bold">
                     <span
@@ -100,7 +114,9 @@ export function PlatformUsersPage() {
                         onClick={() => toggleUser(u.id, u.status)}
                         className="text-xs font-semibold text-[#E05252] hover:underline cursor-pointer"
                       >
-                        {u.status === 'ACTIVE' ? 'Suspendre' : 'Réactiver'}
+                        {u.status === 'ACTIVE'
+                          ? t('superadminPages.users.suspendBtn')
+                          : t('superadminPages.users.reactivateBtn')}
                       </button>
                     )}
                   </td>

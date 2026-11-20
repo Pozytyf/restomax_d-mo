@@ -4,7 +4,7 @@ import { Plus, Shield } from 'lucide-react';
 import { RestaurantLayout } from '../RestaurantLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
-import { ROLE_LABELS } from '../../utils/format';
+import { getRoleLabel } from '../../utils/format';
 import type { Permission, Role, StaffMember } from '../../types';
 
 export function StaffPage() {
@@ -46,12 +46,12 @@ export function StaffPage() {
         method: 'POST',
         body: JSON.stringify(form),
       });
-      notify('Collaborateur créé avec succès.', 'success');
+      notify(t('staff.createdToast'), 'success');
       setShowAdd(false);
       setForm({ fullName: '', email: '', phone: '', role: 'WAITER', password: '' });
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -64,13 +64,13 @@ export function StaffPage() {
       });
       notify(
         next === 'SUSPENDED'
-          ? `${m.fullName} suspendu et sessions révoquées.`
-          : `${m.fullName} réactivé.`,
+          ? t('staff.suspendedToast', { name: m.fullName })
+          : t('staff.reactivatedToast', { name: m.fullName }),
         'info',
       );
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -81,11 +81,11 @@ export function StaffPage() {
         method: 'PATCH',
         body: JSON.stringify({ customPermissions: selectedPerms }),
       });
-      notify('Permissions mises à jour dans la limite du rôle.', 'success');
+      notify(t('staff.permsUpdatedToast'), 'success');
       setEditingMember(null);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -111,7 +111,7 @@ export function StaffPage() {
           >
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Nom complet
+                {t('staff.fullNameLabel')}
               </label>
               <input
                 required
@@ -123,7 +123,7 @@ export function StaffPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Email
+                {t('staff.emailLabel')}
               </label>
               <input
                 required
@@ -135,7 +135,7 @@ export function StaffPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Rôle
+                {t('staff.roleLabel')}
               </label>
               <select
                 value={form.role}
@@ -144,15 +144,15 @@ export function StaffPage() {
                 }
                 className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
-                <option value="MANAGER">Manager</option>
-                <option value="CASHIER">Caissier</option>
-                <option value="WAITER">Serveur</option>
-                <option value="KITCHEN_BAR">Cuisine / Bar</option>
+                <option value="MANAGER">{getRoleLabel('MANAGER')}</option>
+                <option value="CASHIER">{getRoleLabel('CASHIER')}</option>
+                <option value="WAITER">{getRoleLabel('WAITER')}</option>
+                <option value="KITCHEN_BAR">{getRoleLabel('KITCHEN_BAR')}</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Mot de passe initial
+                {t('staff.initialPasswordLabel')}
               </label>
               <input
                 type="password"
@@ -167,7 +167,7 @@ export function StaffPage() {
               type="submit"
               className="py-2.5 px-4 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
-              Créer le compte
+              {t('staff.createAccountBtn')}
             </button>
           </form>
         )}
@@ -177,12 +177,12 @@ export function StaffPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Employé</th>
-                  <th className="px-5 py-3 font-semibold">Email</th>
-                  <th className="px-5 py-3 font-semibold">Rôle</th>
-                  <th className="px-5 py-3 font-semibold">Statut</th>
+                  <th className="px-5 py-3 font-semibold">{t('staff.colEmployee')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('staff.colEmail')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('staff.colRole')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('staff.colStatus')}</th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Actions
+                    {t('staff.colActions')}
                   </th>
                 </tr>
               </thead>
@@ -199,7 +199,7 @@ export function StaffPage() {
                       {m.email}
                     </td>
                     <td className="px-5 py-3 text-xs font-semibold text-[var(--rm-ink)]">
-                      {ROLE_LABELS[m.role] || m.role}
+                      {getRoleLabel(m.role)}
                     </td>
                     <td className="px-5 py-3 text-xs font-semibold">
                       <span
@@ -209,7 +209,9 @@ export function StaffPage() {
                             : 'text-[#E05252]'
                         }
                       >
-                        {m.status === 'ACTIVE' ? 'Actif' : 'Suspendu'}
+                        {m.status === 'ACTIVE'
+                          ? t('staff.activeStatus')
+                          : t('staff.suspendedStatus')}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right space-x-3">
@@ -228,14 +230,16 @@ export function StaffPage() {
                             }}
                             className="text-xs font-semibold text-[var(--rm-ink)] hover:text-[#FF8738] cursor-pointer"
                           >
-                            Permissions
+                            {t('staff.permissionsBtn')}
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleStatus(m)}
                             className="text-xs font-semibold text-[#E05252] hover:underline cursor-pointer"
                           >
-                            {m.status === 'ACTIVE' ? 'Suspendre' : 'Réactiver'}
+                            {m.status === 'ACTIVE'
+                              ? t('staff.suspendBtn')
+                              : t('staff.reactivateBtn')}
                           </button>
                         </>
                       )}
@@ -254,11 +258,11 @@ export function StaffPage() {
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-[#FF8738]" />
               <h3 className="text-base font-bold text-[var(--rm-ink)]">
-                Droits délégués : {editingMember.fullName}
+                {t('staff.delegatedTitle', { name: editingMember.fullName })}
               </h3>
             </div>
             <p className="text-xs text-[var(--rm-ink-muted)]">
-              Plafond maximal du rôle {ROLE_LABELS[editingMember.role]} appliqué automatiquement côté serveur.
+              {t('staff.ceilingDesc', { role: getRoleLabel(editingMember.role) })}
             </p>
             <div className="max-h-64 overflow-y-auto space-y-2 border-t border-b border-[var(--rm-border-subtle)] py-3">
               {(ceilings[editingMember.role] || []).map((perm) => (
@@ -287,14 +291,14 @@ export function StaffPage() {
                 onClick={() => setEditingMember(null)}
                 className="flex-1 py-2 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold cursor-pointer"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 onClick={savePermissions}
                 className="flex-1 py-2 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
               >
-                Enregistrer
+                {t('common.save')}
               </button>
             </div>
           </div>

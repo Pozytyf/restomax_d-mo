@@ -54,14 +54,11 @@ export function PlansSubscriptionsPage() {
           maxStaff: editing.maxStaff,
         }),
       });
-      notify(
-        'Plan mis à jour (répercuté en direct sur la page Tarifs du site vitrine).',
-        'success',
-      );
+      notify(t('superadminPages.subscriptions.planUpdatedToast'), 'success');
       setEditing(null);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -72,76 +69,101 @@ export function PlansSubscriptionsPage() {
           {plans.map((p) => (
             <div
               key={p.id}
-              className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between"
+              className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-6 flex flex-col justify-between"
             >
               <div>
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-[#182333]">{p.name}</h2>
-                  <span className="text-xs font-mono text-[#64748B]">
+                  <h2 className="text-lg font-bold text-[var(--rm-ink)]">
+                    {p.name}
+                  </h2>
+                  <span className="text-xs font-mono text-[var(--rm-ink-muted)]">
                     {p.code}
                   </span>
                 </div>
-                <p className="text-xs text-[#64748B] mt-1">{p.tagline}</p>
-                <p className="mt-4 text-2xl font-extrabold text-[#182333] tabular-nums">
-                  {formatFcfa(p.priceMonthlyXof)} / mois
+                <p className="text-xs text-[var(--rm-ink-muted)] mt-1">
+                  {p.tagline}
                 </p>
-                <p className="text-xs text-[#64748B] tabular-nums">
-                  Annuel : {formatFcfa(p.priceYearlyXof)} · Essai {p.trialDays} j
+                <p className="mt-4 text-2xl font-extrabold text-[var(--rm-ink)] tabular-nums">
+                  {t('superadminPages.subscriptions.perMonth', {
+                    amount: formatFcfa(p.priceMonthlyXof),
+                  })}
                 </p>
-                <p className="mt-3 text-xs text-[#182333] tabular-nums">
-                  Limites : {p.maxTables} tables · {p.maxStaff} employés
+                <p className="text-xs text-[var(--rm-ink-muted)] tabular-nums">
+                  {t('superadminPages.subscriptions.yearlyTrialMeta', {
+                    amount: formatFcfa(p.priceYearlyXof),
+                    days: p.trialDays,
+                  })}
+                </p>
+                <p className="mt-3 text-xs text-[var(--rm-ink)] tabular-nums">
+                  {t('superadminPages.subscriptions.limitsMeta', {
+                    tables: p.maxTables,
+                    staff: p.maxStaff,
+                  })}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditing({ ...p })}
-                className="mt-5 w-full py-2 rounded-lg border border-slate-200 hover:border-[#FF8738] text-xs font-semibold text-[#182333] cursor-pointer"
+                className="mt-5 w-full py-2 rounded-lg border border-[var(--rm-border)] hover:border-[#FF8738] text-xs font-semibold text-[var(--rm-ink)] cursor-pointer transition-colors"
               >
-                Modifier tarif & limites
+                {t('superadminPages.subscriptions.editPlanBtn')}
               </button>
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200">
-            <h2 className="text-base font-bold text-[#182333]">
-              Abonnements actifs & essais
+        <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--rm-border)]">
+            <h2 className="text-base font-bold text-[var(--rm-ink)]">
+              {t('superadminPages.subscriptions.activeSubsTitle')}
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F5F7FA] text-xs text-[#64748B]">
+              <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Restaurant</th>
-                  <th className="px-5 py-3 font-semibold">Plan</th>
-                  <th className="px-5 py-3 font-semibold">Cycle</th>
-                  <th className="px-5 py-3 font-semibold">Statut</th>
-                  <th className="px-5 py-3 font-semibold text-right">
-                    Montant
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.subscriptions.colRestaurant')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.subscriptions.colPlan')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.subscriptions.colCycle')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    {t('superadminPages.subscriptions.colStatus')}
                   </th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Fin période
+                    {t('superadminPages.subscriptions.colAmount')}
+                  </th>
+                  <th className="px-5 py-3 font-semibold text-right">
+                    {t('superadminPages.subscriptions.colPeriodEnd')}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--rm-border-subtle)]">
                 {subs.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-semibold text-[#182333]">
+                  <tr
+                    key={s.id}
+                    className="hover:bg-[var(--rm-surface-hover)] transition-colors"
+                  >
+                    <td className="px-5 py-3 font-semibold text-[var(--rm-ink)]">
                       {s.restaurantName}
                     </td>
-                    <td className="px-5 py-3 text-xs">{s.planName}</td>
-                    <td className="px-5 py-3 text-xs text-[#64748B]">
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink)]">
+                      {s.planName}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-[var(--rm-ink-muted)]">
                       {s.billingCycle}
                     </td>
                     <td className="px-5 py-3 text-xs font-bold text-[#14B8A6]">
                       {s.status}
                     </td>
-                    <td className="px-5 py-3 text-right font-semibold tabular-nums">
+                    <td className="px-5 py-3 text-right font-semibold text-[var(--rm-ink)] tabular-nums">
                       {formatFcfa(s.priceMonthlyXof)}
                     </td>
-                    <td className="px-5 py-3 text-right text-xs text-[#64748B] tabular-nums">
+                    <td className="px-5 py-3 text-right text-xs text-[var(--rm-ink-muted)] tabular-nums">
                       {formatDateFr(s.currentPeriodEnd)}
                     </td>
                   </tr>
@@ -153,15 +175,17 @@ export function PlansSubscriptionsPage() {
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-50 bg-[#182333]/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
-            <h3 className="text-lg font-bold text-[#182333]">
-              Configurer l’offre {editing.name}
+        <div className="fixed inset-0 z-50 bg-[#0B1220]/70 flex items-center justify-center p-4">
+          <div className="bg-[var(--rm-surface)] rounded-2xl border border-[var(--rm-border)] max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-bold text-[var(--rm-ink)]">
+              {t('superadminPages.subscriptions.editModalTitle', {
+                name: editing.name,
+              })}
             </h3>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block font-semibold mb-1">
-                  Mensuel (FCFA)
+                <label className="block font-semibold text-[var(--rm-ink)] mb-1">
+                  {t('superadminPages.subscriptions.monthlyXofLabel')}
                 </label>
                 <input
                   type="number"
@@ -172,12 +196,12 @@ export function PlansSubscriptionsPage() {
                       priceMonthlyXof: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 tabular-nums"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] tabular-nums"
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">
-                  Annuel (FCFA)
+                <label className="block font-semibold text-[var(--rm-ink)] mb-1">
+                  {t('superadminPages.subscriptions.yearlyXofLabel')}
                 </label>
                 <input
                   type="number"
@@ -188,11 +212,13 @@ export function PlansSubscriptionsPage() {
                       priceYearlyXof: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 tabular-nums"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] tabular-nums"
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Max tables</label>
+                <label className="block font-semibold text-[var(--rm-ink)] mb-1">
+                  {t('superadminPages.subscriptions.maxTablesLabel')}
+                </label>
                 <input
                   type="number"
                   value={editing.maxTables}
@@ -202,11 +228,13 @@ export function PlansSubscriptionsPage() {
                       maxTables: Number(e.target.value) || 1,
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 tabular-nums"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] tabular-nums"
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Max équipe</label>
+                <label className="block font-semibold text-[var(--rm-ink)] mb-1">
+                  {t('superadminPages.subscriptions.maxStaffLabel')}
+                </label>
                 <input
                   type="number"
                   value={editing.maxStaff}
@@ -216,7 +244,7 @@ export function PlansSubscriptionsPage() {
                       maxStaff: Number(e.target.value) || 1,
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 tabular-nums"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] bg-[var(--rm-surface)] text-[var(--rm-ink)] tabular-nums"
                 />
               </div>
             </div>
@@ -224,16 +252,16 @@ export function PlansSubscriptionsPage() {
               <button
                 type="button"
                 onClick={() => setEditing(null)}
-                className="flex-1 py-2 rounded-lg border border-slate-300 text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2 rounded-lg border border-[var(--rm-border-input)] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold cursor-pointer"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 onClick={savePlan}
-                className="flex-1 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold cursor-pointer"
               >
-                Enregistrer
+                {t('common.save')}
               </button>
             </div>
           </div>

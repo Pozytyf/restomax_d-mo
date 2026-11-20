@@ -256,12 +256,182 @@ export class RestaurantRepository extends BaseRepository {
     }
   }
 
+  findMenuRecipes(rid: string, menuItemId?: string) {
+    const db = getDb();
+    const sql = `
+      SELECT r.id, r.menu_item_id as menuItemId, r.stock_id as stockId,
+             r.quantity_per_unit as quantityPerUnit,
+             s.name as stockName, s.unit, s.unit_cost_xof as unitCostXof,
+             s.quantity as currentStockQty
+      FROM menu_item_recipes r
+      JOIN stocks s ON s.id = r.stock_id
+      WHERE r.restaurant_id = ?
+      ${menuItemId ? 'AND r.menu_item_id = ?' : ''}
+      ORDER BY s.name ASC
+    `;
+    const rows = (
+      menuItemId
+        ? db.prepare(sql).all(rid, menuItemId)
+        : db.prepare(sql).all(rid)
+    ) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => ({
+      id: String(row.id),
+      menuItemId: String(row.menuItemId),
+      stockId: String(row.stockId),
+      stockName: String(row.stockName),
+      unit: String(row.unit),
+      quantityPerUnit: Number(row.quantityPerUnit),
+      unitCostXof: Number(row.unitCostXof || 0),
+      currentStockQty: Number(row.currentStockQty || 0),
+    }));
+  }
+
+  replaceMenuItemRecipe(
+    rid: string,
+    menuItemId: string,
+    lines: Array<{ stockId: string; quantityPerUnit: number }>,
+  ) {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.prepare(
+      'DELETE FROM menu_item_recipes WHERE restaurant_id = ? AND menu_item_id = ?',
+    ).run(rid, menuItemId);
+
+    const ins = db.prepare(
+      `INSERT INTO menu_item_recipes (
+        id, restaurant_id, menu_item_id, stock_id, quantity_per_unit, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    let computedCostXof = 0;
+    for (const line of lines) {
+      const stock = this.findStockById(line.stockId, rid);
+      if (!stock) {
+        continue;
+      }
+      ins.run(
+        generateId('rec'),
+        rid,
+        menuItemId,
+        line.stockId,
+        line.quantityPerUnit,
+        now,
+        now,
+      );
+      const costRow = db
+        .prepare('SELECT unit_cost_xof FROM stocks WHERE id = ?')
+        .get(line.stockId) as { unit_cost_xof: number } | undefined;
+      computedCostXof += Number(costRow?.unit_cost_xof || 0) * line.quantityPerUnit;
+    }
+
+    if (lines.length > 0 && computedCostXof > 0) {
+      db.prepare(
+        'UPDATE menu_items SET cost_price_xof = ? WHERE id = ? AND restaurant_id = ?',
+      ).run(Math.round(computedCostXof), menuItemId, rid);
+    }
+
+    return this.findMenuRecipes(rid, menuItemId);
+  }
+
+  deductStocksForOrderItems(params: {
+    rid: string;
+    orderNumber: string;
+    items: Array<{ menuItemId: string; quantity: number }>;
+    userId: string | null;
+    now: string;
+  }) {
+    const db = getDb();
+    const qtyByMenuItem = new Map<string, number>();
+    for (const it of params.items) {
+      qtyByMenuItem.set(
+        it.menuItemId,
+        (qtyByMenuItem.get(it.menuItemId) || 0) + Number(it.quantity || 0),
+      );
+    }
+
+    const deductionByStock = new Map<string, number>();
+    const findRecipeStmt = db.prepare(
+      'SELECT stock_id, quantity_per_unit FROM menu_item_recipes WHERE restaurant_id = ? AND menu_item_id = ?',
+    );
+
+    for (const [menuItemId, orderedQty] of qtyByMenuItem.entries()) {
+      if (orderedQty <= 0) continue;
+      const recipeRows = findRecipeStmt.all(params.rid, menuItemId) as Array<{
+        stock_id: string;
+        quantity_per_unit: number;
+      }>;
+      for (const rec of recipeRows) {
+        const amount = Number(rec.quantity_per_unit) * orderedQty;
+        if (amount > 0) {
+          deductionByStock.set(
+            rec.stock_id,
+            (deductionByStock.get(rec.stock_id) || 0) + amount,
+          );
+        }
+      }
+    }
+
+    const lowStocksTriggered: Array<{
+      id: string;
+      name: string;
+      quantity: number;
+      minThreshold: number;
+      unit: string;
+      supplierName: string;
+    }> = [];
+
+    const updateStockStmt = db.prepare(
+      'UPDATE stocks SET quantity = ?, updated_at = ? WHERE id = ? AND restaurant_id = ?',
+    );
+    const insertMoveStmt = db.prepare(
+      `INSERT INTO stock_movements (id, restaurant_id, stock_id, movement_type, quantity_delta, reason, created_by_user_id, created_at)
+       VALUES (?, ?, ?, 'AUTO_ORDER', ?, ?, ?, ?)`,
+    );
+
+    for (const [stockId, rawDeduct] of deductionByStock.entries()) {
+      const stock = this.findStockById(stockId, params.rid);
+      if (!stock) continue;
+      const deduct = Math.round(rawDeduct * 1000) / 1000;
+      const nextQty = Math.max(
+        0,
+        Math.round((Number(stock.quantity) - deduct) * 1000) / 1000,
+      );
+      updateStockStmt.run(nextQty, params.now, stockId, params.rid);
+      insertMoveStmt.run(
+        generateId('smv'),
+        params.rid,
+        stockId,
+        -deduct,
+        `Déduction auto · ${params.orderNumber}`,
+        params.userId,
+        params.now,
+      );
+
+      if (nextQty <= Number(stock.min_threshold) && nextQty !== Number(stock.quantity)) {
+        lowStocksTriggered.push({
+          id: stock.id,
+          name: stock.name,
+          quantity: nextQty,
+          minThreshold: Number(stock.min_threshold),
+          unit: stock.unit,
+          supplierName: stock.supplier_name,
+        });
+      }
+    }
+
+    return {
+      deductedCount: deductionByStock.size,
+      lowStocksTriggered,
+    };
+  }
+
   findOrdersWithItems(rid: string) {
     const db = getDb();
     const orders = db
       .prepare(
         `SELECT o.id, o.restaurant_id as restaurantId, o.order_number as orderNumber,
                 o.order_type as orderType, o.table_id as tableId, t.label as tableLabel,
+                t.zone as tableZone,
                 o.customer_name as customerName, o.status, o.subtotal_xof as subtotalXof,
                 o.discount_xof as discountXof, o.tax_xof as taxXof, o.total_xof as totalXof,
                 o.paid_xof as paidXof, o.notes, o.created_by_user_id as createdByUserId,
@@ -632,10 +802,11 @@ export class RestaurantRepository extends BaseRepository {
     const db = getDb();
     const stocks = db
       .prepare(
-        `SELECT id, restaurant_id as restaurantId, name, unit, quantity,
-                min_threshold as minThreshold, unit_cost_xof as unitCostXof,
-                supplier_name as supplierName, updated_at as updatedAt
-         FROM stocks WHERE restaurant_id = ? ORDER BY name ASC`,
+        `SELECT s.id, s.restaurant_id as restaurantId, s.name, s.unit, s.quantity,
+                s.min_threshold as minThreshold, s.unit_cost_xof as unitCostXof,
+                s.supplier_name as supplierName, s.updated_at as updatedAt,
+                (SELECT COUNT(*) FROM menu_item_recipes r WHERE r.stock_id = s.id AND r.restaurant_id = s.restaurant_id) as usedInRecipesCount
+         FROM stocks s WHERE s.restaurant_id = ? ORDER BY s.name ASC`,
       )
       .all(rid);
 
@@ -646,7 +817,7 @@ export class RestaurantRepository extends BaseRepository {
          FROM stock_movements m
          JOIN stocks s ON s.id = m.stock_id
          WHERE m.restaurant_id = ?
-         ORDER BY m.created_at DESC LIMIT 30`,
+         ORDER BY m.created_at DESC LIMIT 40`,
       )
       .all(rid);
 
@@ -745,6 +916,8 @@ export class RestaurantRepository extends BaseRepository {
       .prepare(
         `SELECT restaurant_id as restaurantId, in_app_enabled as inAppEnabled,
                 email_enabled as emailEnabled, recipient_emails as recipientEmails,
+                smtp_host as smtpHost, smtp_port as smtpPort, smtp_secure as smtpSecure,
+                smtp_user as smtpUser, smtp_pass as smtpPass, smtp_from as smtpFrom,
                 updated_at as updatedAt
          FROM stock_alert_settings WHERE restaurant_id = ?`,
       )
@@ -754,6 +927,12 @@ export class RestaurantRepository extends BaseRepository {
           inAppEnabled: number;
           emailEnabled: number;
           recipientEmails: string;
+          smtpHost: string;
+          smtpPort: number;
+          smtpSecure: number;
+          smtpUser: string;
+          smtpPass: string;
+          smtpFrom: string;
           updatedAt: string;
         }
       | undefined;
@@ -764,6 +943,12 @@ export class RestaurantRepository extends BaseRepository {
         inAppEnabled: true,
         emailEnabled: true,
         recipientEmails: '',
+        smtpHost: '',
+        smtpPort: 587,
+        smtpSecure: false,
+        smtpUser: '',
+        smtpPass: '',
+        smtpFrom: '',
         updatedAt: new Date().toISOString(),
       };
     }
@@ -773,6 +958,12 @@ export class RestaurantRepository extends BaseRepository {
       inAppEnabled: Boolean(row.inAppEnabled),
       emailEnabled: Boolean(row.emailEnabled),
       recipientEmails: row.recipientEmails,
+      smtpHost: row.smtpHost || '',
+      smtpPort: Number(row.smtpPort || 587),
+      smtpSecure: Boolean(row.smtpSecure),
+      smtpUser: row.smtpUser || '',
+      smtpPass: row.smtpPass || '',
+      smtpFrom: row.smtpFrom || '',
       updatedAt: row.updatedAt,
     };
   }
@@ -782,22 +973,48 @@ export class RestaurantRepository extends BaseRepository {
     inAppEnabled: boolean;
     emailEnabled: boolean;
     recipientEmails: string;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    smtpUser: string;
+    smtpPass?: string;
+    smtpFrom: string;
   }) {
     const db = getDb();
     const now = new Date().toISOString();
+    const current = this.findStockAlertSettings(params.rid);
+    const nextPass =
+      params.smtpPass && params.smtpPass.trim().length > 0
+        ? params.smtpPass
+        : current.smtpPass;
+
     db.prepare(
-      `INSERT INTO stock_alert_settings (restaurant_id, in_app_enabled, email_enabled, recipient_emails, updated_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO stock_alert_settings (
+        restaurant_id, in_app_enabled, email_enabled, recipient_emails,
+        smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, smtp_from, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(restaurant_id) DO UPDATE SET
          in_app_enabled = excluded.in_app_enabled,
          email_enabled = excluded.email_enabled,
          recipient_emails = excluded.recipient_emails,
+         smtp_host = excluded.smtp_host,
+         smtp_port = excluded.smtp_port,
+         smtp_secure = excluded.smtp_secure,
+         smtp_user = excluded.smtp_user,
+         smtp_pass = excluded.smtp_pass,
+         smtp_from = excluded.smtp_from,
          updated_at = excluded.updated_at`,
     ).run(
       params.rid,
       params.inAppEnabled ? 1 : 0,
       params.emailEnabled ? 1 : 0,
       params.recipientEmails,
+      params.smtpHost,
+      params.smtpPort,
+      params.smtpSecure ? 1 : 0,
+      params.smtpUser,
+      nextPass,
+      params.smtpFrom,
       now,
     );
     return this.findStockAlertSettings(params.rid);
@@ -1263,7 +1480,8 @@ export class RestaurantRepository extends BaseRepository {
         `SELECT id, name, slug, email, phone, address, city, country, currency, timezone,
                 tax_rate_percent as taxRatePercent, service_fee_percent as serviceFeePercent,
                 opening_hours as openingHours, paydunya_mode as paydunyaMode,
-                paydunya_public_key, paydunya_private_key, paydunya_token, status, created_at as createdAt
+                paydunya_public_key, paydunya_private_key, paydunya_token,
+                printer_settings_json as printerSettingsJson, status, created_at as createdAt
          FROM restaurants WHERE id = ?`,
       )
       .get(rid) as Record<string, unknown>;
@@ -1295,6 +1513,7 @@ export class RestaurantRepository extends BaseRepository {
       paydunyaPublicKey?: string;
       paydunyaPrivateKey?: string;
       paydunyaToken?: string;
+      printerSettingsJson?: string;
     },
   ) {
     const db = getDb();
@@ -1306,7 +1525,8 @@ export class RestaurantRepository extends BaseRepository {
            city = COALESCE(?, city),
            opening_hours = COALESCE(?, opening_hours),
            tax_rate_percent = COALESCE(?, tax_rate_percent),
-           paydunya_mode = COALESCE(?, paydunya_mode)
+           paydunya_mode = COALESCE(?, paydunya_mode),
+           printer_settings_json = COALESCE(?, printer_settings_json)
        WHERE id = ?`,
     ).run(
       params.name,
@@ -1316,6 +1536,7 @@ export class RestaurantRepository extends BaseRepository {
       params.openingHours,
       params.taxRatePercent,
       params.paydunyaMode,
+      params.printerSettingsJson ?? null,
       rid,
     );
 

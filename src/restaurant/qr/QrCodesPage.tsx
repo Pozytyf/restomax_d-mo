@@ -29,12 +29,12 @@ export function QrCodesPage() {
         { method: 'POST' },
       );
       notify(
-        `QR Code de ${table.label} régénéré (v${res.version}). L’ancien QR est révoqué.`,
+        t('qr.regeneratedToast', { label: table.label, version: res.version }),
         'success',
       );
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -43,7 +43,7 @@ export function QrCodesPage() {
     const url = `${window.location.origin}/q/${encodeURIComponent(table.qrToken)}`;
     try {
       await navigator.clipboard.writeText(url);
-      notify(`Lien QR de ${table.label} copié.`, 'success');
+      notify(t('qr.copiedToast', { label: table.label }), 'success');
     } catch {
       notify(url, 'info');
     }
@@ -66,22 +66,22 @@ export function QrCodesPage() {
     >
       <div className="space-y-6">
         <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-5 text-sm text-[var(--rm-ink-muted)] no-print">
-          Chaque table possède un QR code unique et versionné relié directement au menu client. En cas de perte ou de réimpression, régénérez le token pour révoquer immédiatement l’ancienne version.
+          {t('qr.introBanner')}
         </div>
 
         {tables.length === 0 ? (
           <div className="bg-[var(--rm-surface)] rounded-xl border border-[var(--rm-border)] p-10 text-center space-y-3">
             <p className="text-sm font-semibold text-[var(--rm-ink)]">
-              Aucune table configurée pour le moment.
+              {t('qr.emptyTitle')}
             </p>
             <p className="text-xs text-[var(--rm-ink-muted)]">
-              Créez vos premières tables dans Salle & Tables pour générer automatiquement leurs QR codes.
+              {t('qr.emptyDesc')}
             </p>
             <Link
               to="/app/floor"
               className="inline-flex items-center px-4 py-2 rounded-lg bg-[#FF8738] text-white text-xs font-semibold"
             >
-              Configurer les tables
+              {t('qr.configureTablesBtn')}
             </Link>
           </div>
         ) : (
@@ -96,7 +96,7 @@ export function QrCodesPage() {
                   {tbl.label}
                 </h3>
                 <p className="text-[11px] font-mono text-[var(--rm-ink-muted)] mt-1">
-                  Version v{tbl.qrVersion || 1} · Actif
+                  {t('qr.versionActive', { version: tbl.qrVersion || 1 })}
                 </p>
 
                 {tbl.qrToken && (
@@ -121,7 +121,7 @@ export function QrCodesPage() {
                         className="w-full py-2 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Tester le parcours client</span>
+                        <span>{t('qr.testCustomerFlowBtn')}</span>
                       </Link>
                       <button
                         type="button"
@@ -129,7 +129,7 @@ export function QrCodesPage() {
                         className="w-full py-2 rounded-lg border border-[var(--rm-border)] hover:border-[#FF8738] text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                       >
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copier le lien menu</span>
+                        <span>{t('qr.copyMenuLinkBtn')}</span>
                       </button>
                     </>
                   )}
@@ -139,7 +139,7 @@ export function QrCodesPage() {
                     className="w-full py-2 rounded-lg border border-[var(--rm-border)] hover:border-[var(--rm-border-input)] text-[var(--rm-ink-muted)] hover:text-[var(--rm-ink)] hover:bg-[var(--rm-surface-hover)] text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Révoquer & Régénérer</span>
+                    <span>{t('qr.regenerateBtn')}</span>
                   </button>
                 </div>
               </div>

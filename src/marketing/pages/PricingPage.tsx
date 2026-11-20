@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Check, Info } from 'lucide-react';
 import { MarketingLayout } from '../components/MarketingLayout';
@@ -7,6 +8,7 @@ import type { Plan } from '../../types';
 import { formatFcfa } from '../../utils/format';
 
 export function PricingPage() {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [cycle, setCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
   const [loading, setLoading] = useState(true);
@@ -23,10 +25,10 @@ export function PricingPage() {
       <section className="bg-white border-b border-slate-200 py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#182333] tracking-tight">
-            Des offres adaptées à la taille de votre établissement
+            {t('marketingPages.pricing.title')}
           </h1>
           <p className="mt-3 text-[#64748B] max-w-2xl mx-auto">
-            Chaque plan inclut une période d’essai gratuite et un espace multi-tenant isolé en FCFA.
+            {t('marketingPages.pricing.subtitle')}
           </p>
 
           <div className="mt-6 inline-flex items-center p-1 rounded-lg bg-[#F5F7FA] border border-slate-200">
@@ -39,7 +41,7 @@ export function PricingPage() {
                   : 'text-[#64748B] hover:text-[#182333]'
               }`}
             >
-              Facturation mensuelle
+              {t('marketingPages.pricing.monthlyBtn')}
             </button>
             <button
               type="button"
@@ -50,7 +52,7 @@ export function PricingPage() {
                   : 'text-[#64748B] hover:text-[#182333]'
               }`}
             >
-              Facturation annuelle
+              {t('marketingPages.pricing.yearlyBtn')}
             </button>
           </div>
         </div>
@@ -61,7 +63,8 @@ export function PricingPage() {
           <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3 text-xs text-amber-900">
             <Info className="w-4 h-4 shrink-0 mt-0.5 text-[#E5A32A]" />
             <p>
-              <strong>Valeurs de démonstration configurables :</strong> Les montants et limites affichés ci-dessous sont des tarifs de démonstration modifiables en direct depuis le portail Super-admin Resto’MAX.
+              <strong>{t('marketingPages.pricing.demoNoticeTitle')}</strong>{' '}
+              {t('marketingPages.pricing.demoNoticeBody')}
             </p>
           </div>
 
@@ -95,7 +98,7 @@ export function PricingPage() {
                         <h2 className="text-xl font-bold">{plan.name}</h2>
                         {plan.isFeatured && (
                           <span className="text-xs font-semibold text-[#FF8738]">
-                            Recommandé
+                            {t('marketingPages.pricing.recommended')}
                           </span>
                         )}
                       </div>
@@ -116,25 +119,28 @@ export function PricingPage() {
                             plan.isFeatured ? 'text-slate-400' : 'text-[#64748B]'
                           }`}
                         >
-                          {cycle === 'MONTHLY' ? 'par mois' : 'par an'} · Essai {plan.trialDays} jours · Tarif démo
+                          {cycle === 'MONTHLY'
+                            ? t('marketingPages.pricing.perMonth')
+                            : t('marketingPages.pricing.perYear')}{' '}
+                          · {t('marketingPages.pricing.trialDaysMeta', { days: plan.trialDays })}
                         </p>
                       </div>
 
                       <div className="mt-5 grid grid-cols-3 gap-2 text-xs pb-5 border-b border-current/10">
                         <div>
-                          <p className="opacity-70">Tables</p>
+                          <p className="opacity-70">{t('marketingPages.pricing.tablesLabel')}</p>
                           <p className="font-bold tabular-nums mt-0.5">
                             {plan.maxTables}
                           </p>
                         </div>
                         <div>
-                          <p className="opacity-70">Équipe</p>
+                          <p className="opacity-70">{t('marketingPages.pricing.staffLabel')}</p>
                           <p className="font-bold tabular-nums mt-0.5">
                             {plan.maxStaff}
                           </p>
                         </div>
                         <div>
-                          <p className="opacity-70">Articles</p>
+                          <p className="opacity-70">{t('marketingPages.pricing.itemsLabel')}</p>
                           <p className="font-bold tabular-nums mt-0.5">
                             {plan.maxMenuItems}
                           </p>
@@ -159,7 +165,7 @@ export function PricingPage() {
                           : 'bg-[#182333] hover:bg-[#223044] text-white'
                       }`}
                     >
-                      Démarrer avec {plan.name}
+                      {t('marketingPages.pricing.startWithPlan', { name: plan.name })}
                     </Link>
                   </div>
                 );

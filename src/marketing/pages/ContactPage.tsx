@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Mail, MapPin, Phone } from 'lucide-react';
 import { MarketingLayout } from '../components/MarketingLayout';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 export function ContactPage() {
+  const { t } = useTranslation();
   const { notify } = useToast();
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
@@ -34,10 +36,12 @@ export function ContactPage() {
         body: JSON.stringify(form),
       });
       setSent(true);
-      notify('Message transmis avec succès.', 'success');
+      notify(t('marketingPages.contact.sentToast'), 'success');
     } catch (err) {
       notify(
-        err instanceof Error ? err.message : 'Erreur lors de l’envoi.',
+        err instanceof Error
+          ? err.message
+          : t('marketingPages.contact.sendErrorToast'),
         'error',
       );
     } finally {
@@ -49,12 +53,14 @@ export function ContactPage() {
     <MarketingLayout>
       <section className="bg-white border-b border-slate-200 py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-xs font-semibold text-[#FF8738]">Contact</p>
+          <p className="text-xs font-semibold text-[#FF8738]">
+            {t('marketingPages.contact.eyebrow')}
+          </p>
           <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold text-[#182333] tracking-tight">
-            Parlons de votre restaurant
+            {t('marketingPages.contact.title')}
           </h1>
           <p className="mt-3 text-[#64748B] max-w-2xl">
-            Questions commerciales, déploiement multi-sites ou assistance technique : écrivez-nous directement via ce formulaire.
+            {t('marketingPages.contact.subtitle')}
           </p>
         </div>
       </section>
@@ -64,13 +70,15 @@ export function ContactPage() {
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white rounded-2xl border border-slate-200 p-7 space-y-5">
               <h2 className="text-lg font-bold text-[#182333]">
-                Coordonnées commerciales configurables
+                {t('marketingPages.contact.infoTitle')}
               </h2>
               <div className="space-y-4 text-sm">
                 <div className="flex items-start gap-3">
                   <Mail className="w-5 h-5 text-[#FF8738] shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-[#182333]">Email</p>
+                    <p className="font-semibold text-[#182333]">
+                      {t('marketingPages.contact.emailLabel')}
+                    </p>
                     <p className="text-[#64748B]">
                       {settings.contact_email || 'contact@restomax.ci'}
                     </p>
@@ -79,24 +87,30 @@ export function ContactPage() {
                 <div className="flex items-start gap-3">
                   <Phone className="w-5 h-5 text-[#FF8738] shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-[#182333]">Téléphone</p>
+                    <p className="font-semibold text-[#182333]">
+                      {t('marketingPages.contact.phoneLabel')}
+                    </p>
                     <p className="text-[#64748B]">
-                      {settings.contact_phone || 'Configurable depuis le Super-admin'}
+                      {settings.contact_phone ||
+                        t('marketingPages.contact.phoneFallback')}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-[#FF8738] shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-[#182333]">Zone couverte</p>
+                    <p className="font-semibold text-[#182333]">
+                      {t('marketingPages.contact.regionLabel')}
+                    </p>
                     <p className="text-[#64748B]">
-                      {settings.commercial_region || 'Côte d’Ivoire · Zone UEMOA'}
+                      {settings.commercial_region ||
+                        t('marketingPages.contact.regionFallback')}
                     </p>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-[#64748B] pt-3 border-t border-slate-100">
-                Ces coordonnées sont administrables en direct depuis les paramètres de la plateforme Super-admin.
+                {t('marketingPages.contact.infoFootnote')}
               </p>
             </div>
           </div>
@@ -107,10 +121,10 @@ export function ContactPage() {
                 <div className="py-10 text-center space-y-3">
                   <CheckCircle2 className="w-10 h-10 text-[#14B8A6] mx-auto" />
                   <h2 className="text-xl font-bold text-[#182333]">
-                    Merci pour votre message
+                    {t('marketingPages.contact.sentTitle')}
                   </h2>
                   <p className="text-sm text-[#64748B] max-w-md mx-auto">
-                    Votre demande a été enregistrée dans notre console commerciale. Nous vous répondrons dans les meilleurs délais.
+                    {t('marketingPages.contact.sentDesc')}
                   </p>
                 </div>
               ) : (
@@ -127,7 +141,7 @@ export function ContactPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-[#182333] mb-1">
-                        Nom complet *
+                        {t('marketingPages.contact.fullNameLabel')}
                       </label>
                       <input
                         required
@@ -141,7 +155,7 @@ export function ContactPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#182333] mb-1">
-                        Email *
+                        {t('marketingPages.contact.emailInputLabel')}
                       </label>
                       <input
                         required
@@ -157,7 +171,7 @@ export function ContactPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-[#182333] mb-1">
-                        Téléphone
+                        {t('marketingPages.contact.phoneInputLabel')}
                       </label>
                       <input
                         type="tel"
@@ -170,7 +184,7 @@ export function ContactPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#182333] mb-1">
-                        Établissement
+                        {t('marketingPages.contact.venueLabel')}
                       </label>
                       <input
                         type="text"
@@ -184,7 +198,7 @@ export function ContactPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#182333] mb-1">
-                      Message *
+                      {t('marketingPages.contact.messageLabel')}
                     </label>
                     <textarea
                       required
@@ -201,7 +215,9 @@ export function ContactPage() {
                     disabled={sending}
                     className="px-6 py-3 rounded-lg bg-[#FF8738] hover:bg-[#F07322] text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    {sending ? 'Envoi…' : 'Envoyer le message'}
+                    {sending
+                      ? t('marketingPages.contact.sendingBtn')
+                      : t('marketingPages.contact.sendBtn')}
                   </button>
                 </form>
               )}

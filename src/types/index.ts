@@ -100,6 +100,7 @@ export interface Restaurant {
   openingHours: string;
   paydunyaMode: 'TEST' | 'LIVE';
   paydunyaConfigured: boolean;
+  printerSettings?: PrinterSettings;
   status: RestaurantStatus;
   createdAt: string;
   planName?: string;
@@ -125,6 +126,17 @@ export interface MenuOption {
   priceDeltaXof: number;
 }
 
+export interface MenuItemRecipeLine {
+  id: string;
+  menuItemId: string;
+  stockId: string;
+  stockName: string;
+  unit: string;
+  quantityPerUnit: number;
+  unitCostXof: number;
+  currentStockQty: number;
+}
+
 export interface MenuItem {
   id: string;
   restaurantId: string;
@@ -139,6 +151,16 @@ export interface MenuItem {
   available: boolean;
   sortOrder: number;
   options: MenuOption[];
+  recipeLines?: MenuItemRecipeLine[];
+}
+
+export interface PrinterSettings {
+  paperWidth: '80mm' | '58mm';
+  connectionType: 'BROWSER' | 'NETWORK_ESCPOS' | 'WEB_SERIAL';
+  printerHost: string;
+  printerPort: number;
+  autoPrintReceipt: boolean;
+  autoPrintKitchenTicket: boolean;
 }
 
 export interface DiningTable {
@@ -177,6 +199,7 @@ export interface Order {
   orderType: OrderType;
   tableId: string | null;
   tableLabel?: string | null;
+  tableZone?: string | null;
   customerName: string;
   status: OrderStatus;
   subtotalXof: number;
@@ -214,6 +237,7 @@ export interface StockItem {
   unitCostXof: number;
   supplierName: string;
   updatedAt: string;
+  usedInRecipesCount?: number;
 }
 
 export interface StockAlertSettings {
@@ -222,6 +246,13 @@ export interface StockAlertSettings {
   emailEnabled: boolean;
   recipientEmails: string;
   resolvedRecipients: string[];
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUser?: string;
+  smtpFrom?: string;
+  smtpPassConfigured?: boolean;
+  envSmtpConfigured?: boolean;
   updatedAt: string;
 }
 

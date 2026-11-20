@@ -56,7 +56,35 @@ function createSqlitePoolConfig(filename: string): Knex.PoolConfig {
   };
 }
 
+export function buildPostgresKnexConfig(
+  connectionString: string = process.env.DATABASE_URL || '',
+): Knex.Config {
+  const useSsl = process.env.DATABASE_SSL === 'true';
+  return {
+    client: 'pg',
+    connection: {
+      connectionString,
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
+    },
+    pool: {
+      min: Number(process.env.DB_POOL_MIN || 2),
+      max: Number(process.env.DB_POOL_MAX || 20),
+      acquireTimeoutMillis: 30_000,
+    },
+    migrations: {
+      directory: migrationsDir,
+      extension: 'ts',
+      tableName: 'knex_migrations',
+    },
+  };
+}
+
 export function buildKnexConfig(dbPath: string = defaultDbPath): Knex.Config {
+  const client = (process.env.DATABASE_CLIENT || 'sqlite').toLowerCase();
+  if ((client === 'pg' || client === 'postgres' || client === 'postgresql') && process.env.DATABASE_URL) {
+    return buildPostgresKnexConfig(process.env.DATABASE_URL);
+  }
+
   ensureParentDir(dbPath);
 
   return {

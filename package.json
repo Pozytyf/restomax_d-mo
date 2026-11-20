@@ -13,16 +13,19 @@
     "test": "tsx --test src/tests/security-and-flow.test.ts",
     "test:auth": "NODE_OPTIONS=--experimental-vm-modules jest",
     "migrate:latest": "tsx src/server/migrate.ts latest",
-    "migrate:rollback": "tsx src/server/migrate.ts rollback"
+    "migrate:rollback": "tsx src/server/migrate.ts rollback",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^9.6.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.1.1",
@@ -37,6 +40,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "nodemailer": "^10.6.0",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",

@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useRestaurantTheme } from '../app/hooks/useRestaurantTheme';
 import { AppShell, type NavItem } from '../components/AppShell';
 import { useWebSocketRoom } from '../hooks/useWebSocket';
 import { formatTimeFr } from '../utils/format';
@@ -43,6 +44,7 @@ export function SuperAdminLayout({
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
+  const { theme, toggleTheme } = useRestaurantTheme();
   const [alerts, setAlerts] = useState<
     Array<{ id: string; text: string; time: string }>
   >([]);
@@ -78,6 +80,7 @@ export function SuperAdminLayout({
       breadcrumb={t('superadmin.breadcrumb')}
       navItems={navItems}
       alerts={alerts}
+      themeToggle={{ theme, onToggle: toggleTheme }}
       actions={
         actions || (
           <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-[#14B8A6]">

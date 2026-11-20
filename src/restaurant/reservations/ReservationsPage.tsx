@@ -48,11 +48,11 @@ export function ReservationsPage() {
           reservedAt: new Date(form.reservedAt).toISOString(),
         }),
       });
-      notify('Réservation enregistrée.', 'success');
+      notify(t('reservations.createdToast'), 'success');
       setShowAdd(false);
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -64,7 +64,7 @@ export function ReservationsPage() {
       });
       load();
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Erreur.', 'error');
+      notify(err instanceof Error ? err.message : t('menu.errorGeneric'), 'error');
     }
   };
 
@@ -90,7 +90,7 @@ export function ReservationsPage() {
           >
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Client
+                {t('reservations.customerLabel')}
               </label>
               <input
                 required
@@ -104,7 +104,7 @@ export function ReservationsPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Téléphone
+                {t('reservations.phoneLabel')}
               </label>
               <input
                 required
@@ -118,7 +118,7 @@ export function ReservationsPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Couverts
+                {t('reservations.partySizeLabel')}
               </label>
               <input
                 required
@@ -133,7 +133,7 @@ export function ReservationsPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Date & heure
+                {t('reservations.dateTimeLabel')}
               </label>
               <input
                 required
@@ -147,17 +147,17 @@ export function ReservationsPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[var(--rm-ink)] mb-1">
-                Table
+                {t('reservations.tableLabel')}
               </label>
               <select
                 value={form.tableId}
                 onChange={(e) => setForm({ ...form, tableId: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-[var(--rm-border-input)] text-sm bg-[var(--rm-surface)] text-[var(--rm-ink)]"
               >
-                <option value="">À attribuer</option>
-                {tables.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
+                <option value="">{t('reservations.toAssign')}</option>
+                {tables.map((tbl) => (
+                  <option key={tbl.id} value={tbl.id}>
+                    {tbl.label}
                   </option>
                 ))}
               </select>
@@ -166,7 +166,7 @@ export function ReservationsPage() {
               type="submit"
               className="py-2.5 px-4 rounded-lg bg-[#182333] dark:bg-[#223044] hover:bg-[#223044] dark:hover:bg-[#2D4059] dark:border dark:border-[var(--rm-border)] text-white text-xs font-semibold cursor-pointer"
             >
-              Enregistrer
+              {t('common.save')}
             </button>
           </form>
         )}
@@ -176,15 +176,15 @@ export function ReservationsPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--rm-surface-muted)] text-xs text-[var(--rm-ink-muted)]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Client</th>
-                  <th className="px-5 py-3 font-semibold">Date & heure</th>
+                  <th className="px-5 py-3 font-semibold">{t('reservations.customerLabel')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('reservations.dateTimeLabel')}</th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Couverts
+                    {t('reservations.partySizeLabel')}
                   </th>
-                  <th className="px-5 py-3 font-semibold">Table</th>
-                  <th className="px-5 py-3 font-semibold">Statut</th>
+                  <th className="px-5 py-3 font-semibold">{t('reservations.tableLabel')}</th>
+                  <th className="px-5 py-3 font-semibold">{t('reservations.colStatus')}</th>
                   <th className="px-5 py-3 font-semibold text-right">
-                    Actions
+                    {t('reservations.colActions')}
                   </th>
                 </tr>
               </thead>
@@ -209,7 +209,7 @@ export function ReservationsPage() {
                       {r.partySize}
                     </td>
                     <td className="px-5 py-3 text-xs text-[var(--rm-ink)]">
-                      {r.tableLabel || 'Non assignée'}
+                      {r.tableLabel || t('reservations.unassigned')}
                     </td>
                     <td className="px-5 py-3 text-xs font-semibold">
                       <span
@@ -221,7 +221,7 @@ export function ReservationsPage() {
                               : 'text-[#FF8738]'
                         }
                       >
-                        {r.status}
+                        {t(`reservations.statuses.${r.status}`, { defaultValue: r.status })}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right space-x-2 text-xs">
@@ -232,14 +232,14 @@ export function ReservationsPage() {
                             onClick={() => setStatus(r.id, 'SEATED')}
                             className="font-semibold text-[#14B8A6] hover:underline cursor-pointer"
                           >
-                            Installer
+                            {t('reservations.seatBtn')}
                           </button>
                           <button
                             type="button"
                             onClick={() => setStatus(r.id, 'CANCELLED')}
                             className="font-semibold text-[#E05252] hover:underline cursor-pointer"
                           >
-                            Annuler
+                            {t('common.cancel')}
                           </button>
                         </>
                       )}

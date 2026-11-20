@@ -1,5 +1,14 @@
 import nodemailer from 'nodemailer';
 
+export interface SmtpRuntimeConfig {
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  pass?: string;
+  from?: string;
+}
+
 export interface CriticalStockEmailPayload {
   restaurantName: string;
   stockName: string;
@@ -8,12 +17,46 @@ export interface CriticalStockEmailPayload {
   unit: string;
   supplierName: string;
   recipients: string[];
+  smtpConfig?: SmtpRuntimeConfig;
 }
 
 export interface EmailDispatchResult {
   dispatched: boolean;
   status: 'SENT' | 'QUEUED_NO_SMTP' | 'SKIPPED' | 'FAILED';
   recipients: string[];
+  errorMessage?: string;
+}
+
+function resolveSmtpTransport(override?: SmtpRuntimeConfig) {
+  const host = (override?.host || process.env.SMTP_HOST || '').trim();
+  if (!host) return null;
+
+  const port = Number(override?.port || process.env.SMTP_PORT || 587);
+  const secure =
+    typeof override?.secure === 'boolean'
+      ? override.secure
+      : process.env.SMTP_SECURE === 'true' || port === 465;
+  const user = (override?.user || process.env.SMTP_USER || '').trim();
+  const pass = override?.pass || process.env.SMTP_PASS || '';
+  const from =
+    (override?.from || process.env.SMTP_FROM || '').trim() ||
+    'Resto’MAX Alertes <alertes@restomax.ci>';
+
+  return {
+    from,
+    transporter: nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      connectionTimeout: 6000,
+      greetingTimeout: 6000,
+      auth: user && pass ? { user, pass } : undefined,
+    }),
+  };
+}
+
+export function isEnvSmtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_HOST?.trim());
 }
 
 export async function sendCriticalStockAlertEmail(
@@ -35,9 +78,8 @@ export async function sendCriticalStockAlertEmail(
     };
   }
 
-  const smtpHost = process.env.SMTP_HOST?.trim();
-  if (!smtpHost) {
-    // Aucun serveur SMTP configuré dans cet environnement : journalisation propre sans bloquer le flux métier
+  const resolved = resolveSmtpTransport(payload.smtpConfig);
+  if (!resolved) {
     return {
       dispatched: false,
       status: 'QUEUED_NO_SMTP',
@@ -46,22 +88,6 @@ export async function sendCriticalStockAlertEmail(
   }
 
   try {
-    const port = Number(process.env.SMTP_PORT || 587);
-    const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port,
-      secure,
-      auth:
-        process.env.SMTP_USER && process.env.SMTP_PASS
-          ? {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS,
-            }
-          : undefined,
-    });
-
-    const from = process.env.SMTP_FROM || 'Resto’MAX Alertes <alertes@restomax.ci>';
     const subject = `[Resto’MAX] Alerte réapprovisionnement : ${payload.stockName} (${payload.restaurantName})`;
     const text = [
       `Bonjour,`,
@@ -101,8 +127,8 @@ export async function sendCriticalStockAlertEmail(
       </div>
     `;
 
-    await transporter.sendMail({
-      from,
+    await resolved.transporter.sendMail({
+      from: resolved.from,
       to: cleanRecipients.join(', '),
       subject,
       text,
@@ -114,11 +140,58 @@ export async function sendCriticalStockAlertEmail(
       status: 'SENT',
       recipients: cleanRecipients,
     };
-  } catch {
+  } catch (err) {
     return {
       dispatched: false,
       status: 'FAILED',
       recipients: cleanRecipients,
+      errorMessage: err instanceof Error ? err.message : 'SMTP error',
+    };
+  }
+}
+
+export async function sendSmtpTestEmail(params: {
+  restaurantName: string;
+  recipients: string[];
+  smtpConfig?: SmtpRuntimeConfig;
+}): Promise<EmailDispatchResult> {
+  const cleanRecipients = Array.from(
+    new Set(
+      params.recipients
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@')),
+    ),
+  );
+  if (cleanRecipients.length === 0) {
+    return { dispatched: false, status: 'SKIPPED', recipients: [] };
+  }
+  const resolved = resolveSmtpTransport(params.smtpConfig);
+  if (!resolved) {
+    return {
+      dispatched: false,
+      status: 'QUEUED_NO_SMTP',
+      recipients: cleanRecipients,
+    };
+  }
+
+  try {
+    await resolved.transporter.sendMail({
+      from: resolved.from,
+      to: cleanRecipients.join(', '),
+      subject: `[Resto’MAX] Test SMTP réussi — ${params.restaurantName}`,
+      text: `Votre configuration SMTP de production pour "${params.restaurantName}" est opérationnelle.`,
+    });
+    return {
+      dispatched: true,
+      status: 'SENT',
+      recipients: cleanRecipients,
+    };
+  } catch (err) {
+    return {
+      dispatched: false,
+      status: 'FAILED',
+      recipients: cleanRecipients,
+      errorMessage: err instanceof Error ? err.message : 'SMTP error',
     };
   }
 }
