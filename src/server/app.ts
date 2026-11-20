@@ -4,7 +4,7 @@ import { publicRouter } from './routes/public.ts';
 import { authRouter } from './routes/auth.ts';
 import { restaurantRouter } from './routes/restaurant.ts';
 import { superAdminRouter } from './routes/superadmin.ts';
-
+import { checkSupabaseHealth } from './lib/supabase.ts';
 import { getWebSocketStats } from './ws.ts';
 
 export function createExpressApp() {
@@ -14,10 +14,11 @@ export function createExpressApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
-  // Healthcheck (single & multi-instance readiness)
-  app.get('/api/health', (_req, res) => {
+  // Healthcheck (single, multi-instance & Supabase/Vercel readiness)
+  app.get('/api/health', async (_req, res) => {
     const dbClient = (process.env.DATABASE_CLIENT || 'sqlite').toLowerCase();
     const wsStats = getWebSocketStats();
+    const supabaseHealth = await checkSupabaseHealth();
     res.json({
       status: 'ok',
       service: 'restomax',
@@ -26,6 +27,12 @@ export function createExpressApp() {
       instanceId: wsStats.instanceId,
       pubsubMode: wsStats.pubsubMode,
       connectedWsClients: wsStats.connectedClients,
+      supabaseConfigured: supabaseHealth.configured,
+      supabaseRealtimeReady: supabaseHealth.realtimeReady,
+      postgresConnected: supabaseHealth.postgresConnected,
+      postgresLatencyMs: supabaseHealth.latencyMs,
+      vercelEnv: process.env.VERCEL_ENV || null,
+      vercelRegion: process.env.VERCEL_REGION || null,
     });
   });
 

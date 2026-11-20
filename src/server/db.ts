@@ -14,7 +14,9 @@ export function getDb(customPath?: string): SqliteDatabase {
   const dbPath =
     customPath ||
     process.env.DATABASE_PATH ||
-    path.resolve(process.cwd(), 'data/restomax.db');
+    (process.env.VERCEL
+      ? '/tmp/restomax.db'
+      : path.resolve(process.cwd(), 'data/restomax.db'));
 
   if (dbPath !== ':memory:') {
     const dir = path.dirname(dbPath);

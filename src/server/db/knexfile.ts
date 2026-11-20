@@ -9,7 +9,9 @@ export interface BetterSqlite3RawConnection {
 
 const defaultDbPath =
   process.env.DATABASE_PATH ||
-  path.resolve(process.cwd(), 'data/restomax.db');
+  (process.env.VERCEL
+    ? '/tmp/restomax.db'
+    : path.resolve(process.cwd(), 'data/restomax.db'));
 
 const migrationsDir = path.resolve(process.cwd(), 'src/server/migrations');
 
@@ -57,9 +59,15 @@ function createSqlitePoolConfig(filename: string): Knex.PoolConfig {
 }
 
 export function buildPostgresKnexConfig(
-  connectionString: string = process.env.DATABASE_URL || '',
+  connectionString: string =
+    process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '',
 ): Knex.Config {
-  const useSsl = process.env.DATABASE_SSL === 'true';
+  const lower = connectionString.toLowerCase();
+  const isSupabaseHost =
+    lower.includes('supabase.co') ||
+    lower.includes('supabase.com') ||
+    lower.includes('pooler.supabase');
+  const useSsl = process.env.DATABASE_SSL === 'true' || isSupabaseHost;
   return {
     client: 'pg',
     connection: {
@@ -67,8 +75,8 @@ export function buildPostgresKnexConfig(
       ssl: useSsl ? { rejectUnauthorized: false } : false,
     },
     pool: {
-      min: Number(process.env.DB_POOL_MIN || 2),
-      max: Number(process.env.DB_POOL_MAX || 20),
+      min: Number(process.env.DB_POOL_MIN || (process.env.VERCEL ? 0 : 2)),
+      max: Number(process.env.DB_POOL_MAX || (process.env.VERCEL ? 10 : 20)),
       acquireTimeoutMillis: 30_000,
     },
     migrations: {
@@ -80,9 +88,13 @@ export function buildPostgresKnexConfig(
 }
 
 export function buildKnexConfig(dbPath: string = defaultDbPath): Knex.Config {
+  const pgUrl = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '';
   const client = (process.env.DATABASE_CLIENT || 'sqlite').toLowerCase();
-  if ((client === 'pg' || client === 'postgres' || client === 'postgresql') && process.env.DATABASE_URL) {
-    return buildPostgresKnexConfig(process.env.DATABASE_URL);
+  if (
+    (client === 'pg' || client === 'postgres' || client === 'postgresql') &&
+    pgUrl
+  ) {
+    return buildPostgresKnexConfig(pgUrl);
   }
 
   ensureParentDir(dbPath);
